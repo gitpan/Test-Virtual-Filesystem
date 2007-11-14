@@ -1,0 +1,157 @@
+NAME
+    Test::Virtual::Filesystem - Validate a filesystem
+
+SYNOPSIS
+        use Test::Virtual::Filesystem;
+        Test::Virtual::Filesystem->new('/path/to/test')->runtests;
+
+    or with more customization:
+
+        use Test::Virtual::Filesystem;
+        my $test = Test::Virtual::Filesystem->new('/path/to/test');
+        $test->test_xattr(1);
+        $test->test_chown(1);
+        $test->test_atime(1);
+        $test->runtests;
+
+LICENSE
+    Copyright 2007 Chris Dolan, *cdolan@cpan.org*
+
+    This library is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
+DESCRIPTION
+    If you are creating a filesystem, say via Fuse or Filesys::Virtual, you
+    need a fairly mundane set of tests to try out lots of typical filesystem
+    operations. This package attempts to accumulate a bunch of those tests
+    to make it easier for you to test your filesystem.
+
+CAVEATS AND LIMITATIONS
+    This test class needs a more complete suite of test cases. In
+    particular, tests are needed for the following filesystem features:
+
+        extended attributes (xattr)
+        symlinks
+        hardlinks
+        a/u/ctime
+        nlink
+        chown
+        deep directories
+        very full directories
+        large files
+        binary files
+        files with awkward characters: EOF, NUL
+        non-ASCII filenames (maybe constructor should specify the encoding)
+        permissions
+        special file types (fifos, sockets, character and block devices, etc)
+        file locking
+        threading and re-entrancy
+        truncate
+        binmode
+        eof
+        fileno
+        seek/rewinddir, tell/telldir
+        read, sysread, syswrite
+        async I/O?
+
+COMPATIBILITY
+    Until this package reaches v1.0, we will add arbitrary new tests which
+    may break compatibility. After 1.0, we will tag every test with a
+    version number. If client code specifies an expected version number
+    (say, 1.10) and it's running against a newer version (say, 1.20) then
+    any newer test that fails will be marked as a TODO test.
+
+    This policy will allow us to continue adding new filesystem tests
+    without worrying about breaking existing CPAN modules.
+
+METHODS
+    This is a subclass of Test::Class. All methods from that class are
+    available, particularly `runtests()'.
+
+    $pkg->new({mountdir => $mountdir, ...})
+        Create a new test which will operate on files contained within the
+        specified mount directory. WARNING: any and all files and folders in
+        that mount directory will be deleted!
+
+        The supported options are:
+
+        `mountdir'
+            This required property indicates where tests should run.
+
+        `compatible'
+            Specify a Test::Virtual::Filesystem version number that is known
+            to work. If the actual Test::Virtual::Filesystem version number
+            is greater, then any test cases added after the compatible
+            version are considered `TODO' tests. See Test::More for details
+            about `TODO' tests.
+
+    $self->init()
+        Invoked just before then end of `new()'. This exists solely for
+        subclassing convenience. This implementation does nothing.
+
+PROPERTIES
+    The following accessor/mutator methods exist to turn on/off various
+    features. they all behave in usual Perl fashion: with no argument, they
+    return the current value. With one argument, they set the current value
+    and return void.
+
+    $self->test_xattr()
+        Default false.
+
+    $self->test_time()
+        Default true. If set false, it also sets `atime', `ctime' and
+        `utime' false.
+
+    $self->test_atime()
+        Default false.
+
+    $self->test_utime()
+        Default true.
+
+    $self->test_ctime()
+        Default true.
+
+    $self->test_permissions()
+        Default false.
+
+    $self->test_special()
+        Default true. If set false, it also sets `fifo' false.
+
+    $self->test_fifo()
+        Default false. AKA named pipes.
+
+    $self->test_symlink()
+        Default true, except `$^O eq 'MSWin32'' where it defaults to false.
+
+    $self->test_hardlink()
+        Default true.
+
+    $self->test_nlink()
+        Default true.
+
+    $self->test_chown()
+        Default false.
+
+TEST CASES
+    stat_dir(), introduced in v0.01
+    read_dir(), introduced in v0.01
+    read_dir_fail(), introduced in v0.01
+    read_file_fail(), introduced in v0.01
+    write_empty_file(), introduced in v0.01
+    write_file(), introduced in v0.01
+    write_file_subdir_fail(), introduced in v0.01
+    write_append_file(), introduced in v0.01
+    write_read_file(), introduced in v0.01
+    write_unlink_file(), introduced in v0.01
+    write_mkdir(), introduced in v0.01
+    write_mkdir_fail(), introduced in v0.01
+    write_rmdir(), introduced in v0.01
+    write_subdir(), introduced in v0.01
+SEE ALSO
+    Test::Class
+
+    Fuse::PDF
+
+AUTHOR
+    Chris Dolan, *cdolan@cpan.org*
+

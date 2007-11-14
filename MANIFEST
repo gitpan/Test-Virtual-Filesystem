@@ -1,0 +1,10 @@
+Build.PL
+Changes
+lib/Test/Virtual/Filesystem.pm
+MANIFEST			This list of files
+t/filesys.t
+t/pod-coverage.t
+t/pod.t
+Makefile.PL
+README
+META.yml

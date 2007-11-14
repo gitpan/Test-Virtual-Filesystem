@@ -1,0 +1,7 @@
+# History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
+
+0.01 :
+     - Released: 2007 Nov 14
+     - Summary: initial release
+     - Known bugs: very incomplete collection of tests. See CAVEATS in documentation
+
