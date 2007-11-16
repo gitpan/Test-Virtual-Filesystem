@@ -12,6 +12,9 @@ Module::Build->new(
       'Class::Accessor::Fast' => 0,
    },
    recommends => {
+      # Optional for testing extended attributes
+      'File::ExtAttr' => 1,
+
       # Optional in tests, skipped if not present
       'Test::Pod' => 0,
       'Test::Pod::Coverage' => 0,

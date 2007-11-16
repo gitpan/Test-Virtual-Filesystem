@@ -12,4 +12,4 @@ eval 'use Pod::Coverage 0.17 ()';
 plan skip_all => 'Optional Pod::Coverage 0.17 not found' if $@;
 eval 'use Test::Pod::Coverage 1.04';
 plan skip_all => 'Optional Test::Pod::Coverage 1.04 not found' if $@;
-all_pod_coverage_ok({trustme => [qr/\A (?: Introduced | setup | teardown) \z/xms]});
+all_pod_coverage_ok();

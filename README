@@ -26,12 +26,23 @@ DESCRIPTION
     operations. This package attempts to accumulate a bunch of those tests
     to make it easier for you to test your filesystem.
 
+COMPATIBILITY POLICY
+    Every time we add a new test to this suite, we annotate it with a
+    version number. If client code specifies an expected version number
+    (say, 1.10) and it's running against a newer version or this module
+    (say, 1.20) then any newer test will be marked as a TODO test. That way
+    if the test fails, it won't regress published code that used to work.
+
+    This policy will allow us to continue adding new filesystem tests
+    without worrying about breaking existing CPAN modules.
+
 CAVEATS AND LIMITATIONS
     This test class needs a more complete suite of test cases. In
     particular, tests are needed for the following filesystem features:
 
         extended attributes (xattr)
-        symlinks
+        multiple symlinks
+        recursive symlinks
         hardlinks
         a/u/ctime
         nlink
@@ -41,7 +52,7 @@ CAVEATS AND LIMITATIONS
         large files
         binary files
         files with awkward characters: EOF, NUL
-        non-ASCII filenames (maybe constructor should specify the encoding)
+        non-ASCII filenames (maybe constructor should specify the encoding?)
         permissions
         special file types (fifos, sockets, character and block devices, etc)
         file locking
@@ -54,15 +65,8 @@ CAVEATS AND LIMITATIONS
         read, sysread, syswrite
         async I/O?
 
-COMPATIBILITY
-    Until this package reaches v1.0, we will add arbitrary new tests which
-    may break compatibility. After 1.0, we will tag every test with a
-    version number. If client code specifies an expected version number
-    (say, 1.10) and it's running against a newer version (say, 1.20) then
-    any newer test that fails will be marked as a TODO test.
-
-    This policy will allow us to continue adding new filesystem tests
-    without worrying about breaking existing CPAN modules.
+    Any help writing tests (or adapting tests from existing suites) will be
+    appreciated!
 
 METHODS
     This is a subclass of Test::Class. All methods from that class are
@@ -81,9 +85,9 @@ METHODS
         `compatible'
             Specify a Test::Virtual::Filesystem version number that is known
             to work. If the actual Test::Virtual::Filesystem version number
-            is greater, then any test cases added after the compatible
-            version are considered `TODO' tests. See Test::More for details
-            about `TODO' tests.
+            is greater, then any test cases added after the specified
+            compatible version are considered `TODO' tests. See Test::More
+            for details about `TODO' tests.
 
     $self->init()
         Invoked just before then end of `new()'. This exists solely for
@@ -94,6 +98,9 @@ PROPERTIES
     features. they all behave in usual Perl fashion: with no argument, they
     return the current value. With one argument, they set the current value
     and return void.
+
+    $self->test_all()
+        Turns on all the tests. Default false.
 
     $self->test_xattr()
         Default false.
@@ -133,7 +140,48 @@ PROPERTIES
         Default false.
 
 TEST CASES
+    setup()
+        Runs before every test to prepare a directory for testing.
+
+    teardown()
+        Runs after every test to clean up the test directory so the next
+        test will have a clean workspace.
+
+    Introduced($version)
+        A subroutine attribute used to flag the Test::Virtual::Filesystem
+        version number when that test was introduced. It's used like this:
+
+          sub open_nonexistent_file : Tests(1) : Introduced('0.02') {
+             ok(!open(my $f, '<', '/tmp/no_such_file'));
+          }
+
+    Features($featurelist)
+        This is a subroutine attribute to specify one or more features used
+        in the test. The features should be listed as a comma-separated
+        list:
+
+          sub symlink_create : Tests(1) : Features('symlink') {
+             ok(symlink($src, $dest));
+          }
+          sub symlink_permissions : Tests(2) : Features('symlink, permissions') {
+             ok(symlink($src, $dest));
+             ok(-w $dest);
+          }
+
+        Subfeatures must be separated from their parent features by a `/'.
+        For example:
+
+          sub atime_utime_set : Tests(1) : Features('time/atime, time/utime') {
+             my $now = time;
+             ok(utime($now, $now, $file));
+          }
+
+        Look at the source code for `new()' to see the supported features
+        and subfeatures. The `test_*' methods above describe the all the
+        features, but in those methods the subfeature names are flattened.
+
     stat_dir(), introduced in v0.01
+    stat_dir_size(), introduced in v0.02
     read_dir(), introduced in v0.01
     read_dir_fail(), introduced in v0.01
     read_file_fail(), introduced in v0.01
@@ -147,6 +195,9 @@ TEST CASES
     write_mkdir_fail(), introduced in v0.01
     write_rmdir(), introduced in v0.01
     write_subdir(), introduced in v0.01
+    symlink_create(), introduced in v0.02
+    xattr_list(), introduced in v0.02
+    xattr_set(), introduced in v0.02
 SEE ALSO
     Test::Class
 
