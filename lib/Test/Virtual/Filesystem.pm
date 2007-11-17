@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-11-16 01:29:27 -0600 (Fri, 16 Nov 2007) $
+#     $Date: 2007-11-16 23:05:06 -0600 (Fri, 16 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 703 $
+# $Revision: 705 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -19,7 +19,7 @@ use Attribute::Handlers;
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 my $CAN_USE_XATTR;
 eval {
@@ -466,16 +466,18 @@ sub stat_dir : Test(6) : Introduced('0.01') {
    return;
 }
 
-=item stat_dir_size(), introduced in v0.02
-
-=cut
-
-sub stat_dir_size : Test(1) : Introduced('0.02') {
-   my ($self) = @_;
-   my $f = $self->_file(q{/});
-   ok(-s $f, 'mount dir has non-zero size');
-   return;
-}
+## This turned out to be very platform-sensitive.
+#
+# =item stat_dir_size(), introduced in v0.02
+#
+# =cut
+#
+# sub stat_dir_size : Test(1) : Introduced('0.02') {
+#    my ($self) = @_;
+#    my $f = $self->_file(q{/});
+#    ok(-s $f, 'mount dir has non-zero size');
+#    return;
+# }
 
 =item read_dir(), introduced in v0.01
 
@@ -513,7 +515,7 @@ sub read_dir_fail : Test(2) : Introduced('0.01') {
 sub read_file_fail : Test(2) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/read_file_fail');
-   my $content = "content\n";
+   my $content = 'content';
    eval {
       $self->_read_file($f);
    };
@@ -542,7 +544,7 @@ sub write_empty_file : Test(2) : Introduced('0.01') {
 sub write_file : Test(2) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/write_file');
-   my $content = "content\n";
+   my $content = 'content';
    $self->_write_file($f, $content);
    ok(-f $f, 'wrote file');
    is(-s $f, length $content, 'file got right size');
@@ -556,7 +558,7 @@ sub write_file : Test(2) : Introduced('0.01') {
 sub write_file_subdir_fail : Test(2) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/no_such/write_file');
-   my $content = "content\n";
+   my $content = 'content';
    eval {
       $self->_write_file($f, $content);
    };
@@ -572,7 +574,7 @@ sub write_file_subdir_fail : Test(2) : Introduced('0.01') {
 sub write_append_file : Test(2) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/append_file');
-   my $content = "content\n";
+   my $content = 'content';
    $self->_write_file($f, $content);
    $self->_append_file($f, $content);
    ok(-f $f, 'wrote file');
@@ -589,7 +591,7 @@ sub write_append_file : Test(2) : Introduced('0.01') {
 # sub write_append_file_fail : Test(2) : Introduced('0.01') {
 #    my ($self) = @_;
 #    my $f = $self->_file('/append_file_fail');
-#    my $content = "content\n";
+#    my $content = 'content';
 #    eval {
 #       $self->_append_file($f, $content);
 #    };
@@ -605,7 +607,7 @@ sub write_append_file : Test(2) : Introduced('0.01') {
 sub write_read_file : Test(1) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/read_file');
-   my $content = "content\n";
+   my $content = 'content';
    $self->_write_file($f, $content);
    is($self->_read_file($f), $content, 'read file');
    return;
@@ -618,7 +620,7 @@ sub write_read_file : Test(1) : Introduced('0.01') {
 sub write_unlink_file : Test(3) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/read_file');
-   my $content = "content\n";
+   my $content = 'content';
    $self->_write_file($f, $content);
    ok(-e $f, 'file exists');
    ok(-f $f, 'file is a file');
@@ -676,7 +678,7 @@ sub write_subdir : Test(3) : Introduced('0.01') {
    my ($self) = @_;
    my $d = $self->_file('/mk_dir');
    my $f = $self->_file('/mk_dir/file');
-   my $content = "content\n";
+   my $content = 'content';
    mkdir $d or die $OS_ERROR;
    ok(-d $d, 'made dir');
    $self->_write_file($f, $content);
@@ -742,8 +744,8 @@ sub xattr_set : Test(9) : Introduced('0.02') : Features('xattr') {
       my $xattr_value = 'test';
       my $xattr_replace = 'test2';
 
-      # just in case, clean up!
-      if (defined File::ExtAttr::getfattr($f, $xattr_key)) {
+      # just in case, clean up.  This fails if the value is '0' but that should never happen!
+      if (File::ExtAttr::getfattr($f, $xattr_key)) {
          File::ExtAttr::delfattr($f, $xattr_key);
       }
       {
@@ -761,7 +763,9 @@ sub xattr_set : Test(9) : Introduced('0.02') : Features('xattr') {
       ok(File::ExtAttr::setfattr($f, $xattr_key, $xattr_replace, {replace => 1}), 'replace xattr');
       is(File::ExtAttr::getfattr($f, $xattr_key), $xattr_replace, 'get xattr');
       ok(File::ExtAttr::delfattr($f, $xattr_key), 'delete xattr');
-      is(File::ExtAttr::getfattr($f, $xattr_key), undef, 'xattr deleted');
+      # Some implementations return undef, some return q{}
+      my $get = File::ExtAttr::getfattr($f, $xattr_key);
+      ok(!defined $get || q{} eq $get, 'xattr deleted');
 
       unlink $f;
    }

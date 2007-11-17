@@ -181,7 +181,6 @@ TEST CASES
         features, but in those methods the subfeature names are flattened.
 
     stat_dir(), introduced in v0.01
-    stat_dir_size(), introduced in v0.02
     read_dir(), introduced in v0.01
     read_dir_fail(), introduced in v0.01
     read_file_fail(), introduced in v0.01
