@@ -5,7 +5,8 @@ Module::Build->new(
    dist_author => 'Chris Dolan <cdolan@cpan.org>',
    license => 'perl',
    requires => {
-      'perl' => '5.6.0',
+      'perl' => '5.8.0',
+      'List::MoreUtils' => 0,
       'Test::Class' => '0.24',
       'Test::More' => 0.62,  # needs to be v0.62 for Test::Memory::Cycle v1.02
       'Readonly' => 0,

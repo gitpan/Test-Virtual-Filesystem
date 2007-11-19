@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-11-16 23:05:06 -0600 (Fri, 16 Nov 2007) $
+#     $Date: 2007-11-18 23:08:27 -0600 (Sun, 18 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 705 $
+# $Revision: 711 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -16,20 +16,41 @@ use File::Path qw();
 use File::Spec;
 use List::MoreUtils qw(any);
 use Attribute::Handlers;
+use Config qw();
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
-my $CAN_USE_XATTR;
-eval {
-   require File::ExtAttr;
-   $CAN_USE_XATTR = 1;
-};
+# Currently this must not nest more than one level deep!
+# (due to implementation of deep copy in new() and the static accessor/mutator constructor)
+my %feature_defaults = (
+      xattr => 0,
+      time => {
+         atime => 0,
+         utime => 1,
+         ctime => 1,
+      },
+      permissions => 0,
+      special => {
+         fifo => 0,
+      },
+      symlink => 1,
+      hardlink => 1,
+      nlink => 1,
+      chown => 0,
+);
+
+# if true, the feature is disabled no matter what
+my %feature_disabled = (
+   $Config::Config{d_symlink} ? () : (symlink => 1),  ## no critic(ProhibitPackageVars)
+   $Config::Config{d_chown} ? () : (chown => 1),      ## no critic(ProhibitPackageVars)
+   eval {require File::ExtAttr; 1;} ? () : (xattr => 1),
+);
 
 =pod
 
-=for stopwords TODO CPAN
+=for stopwords TODO CPAN MSWin32
 
 =head1 NAME
 
@@ -44,9 +65,9 @@ or with more customization:
 
     use Test::Virtual::Filesystem;
     my $test = Test::Virtual::Filesystem->new('/path/to/test');
-    $test->test_xattr(1);
-    $test->test_chown(1);
-    $test->test_atime(1);
+    $test->enable_test_xattr(1);
+    $test->enable_test_chown(1);
+    $test->enable_test_atime(1);
     $test->runtests;
 
 =head1 LICENSE
@@ -150,61 +171,64 @@ subclassing convenience.  This implementation does nothing.
 =head1 PROPERTIES
 
 The following accessor/mutator methods exist to turn on/off various
-features.  they all behave in usual Perl fashion: with no argument,
+features.  They all behave in usual Perl fashion: with no argument,
 they return the current value.  With one argument, they set the
-current value and return void.
+current value and return the newly set value.
 
 =over
 
-=item $self->test_all()
+=item $self->enable_test_all()
 
-Turns on all the tests.  Default false.
+As a getter, checks whether all of the other tests are enabled.
 
-=item $self->test_xattr()
+As a setter, turns on/off all the tests.
+
+=item $self->enable_test_xattr()
 
 Default false.
 
-=item $self->test_time()
+=item $self->enable_test_time()
 
 Default true.  If set false, it also sets C<atime>, C<ctime> and C<utime> false.
 
-=item $self->test_atime()
+=item $self->enable_test_atime()
 
 Default false.
 
-=item $self->test_utime()
+=item $self->enable_test_utime()
 
 Default true.
 
-=item $self->test_ctime()
+=item $self->enable_test_ctime()
 
 Default true.
 
-=item $self->test_permissions()
+=item $self->enable_test_permissions()
 
 Default false.
 
-=item $self->test_special()
+=item $self->enable_test_special()
 
 Default true.  If set false, it also sets C<fifo> false.
 
-=item $self->test_fifo()
+=item $self->enable_test_fifo()
 
 Default false.  AKA named pipes.
 
-=item $self->test_symlink()
+=item $self->enable_test_symlink()
 
-Default true, except C<$^O eq 'MSWin32'> where it defaults to false.
+Default true, except for platforms that do not support symlinks (for example
+MSWin32 and cygwin) as determined by C<$Config::Config{d_symlink}>.
 
-=item $self->test_hardlink()
-
-Default true.
-
-=item $self->test_nlink()
+=item $self->enable_test_hardlink()
 
 Default true.
 
-=item $self->test_chown()
+=item $self->enable_test_nlink()
+
+Default true.
+
+=item $self->enable_test_chown()
 
 Default false.
 
@@ -224,21 +248,9 @@ sub new {
       $self->{$key} = $opts->{$key};
    }
    $self->{fs_opts} = {
-      'all' => 0,
-      'xattr' => 0,
-      'time' => {
-         'atime' => 0,
-         'utime' => 1,
-         'ctime' => 1,
-      },
-      'permissions' => 0,
-      'special' => {
-         'fifo' => 0,
-      },
-      'symlink' => 1,
-      'hardlink' => 1,
-      'nlink' => 1,
-      'chown' => 0,
+      # one-level deep copy
+      map {$_ => ref $feature_defaults{$_} ? { %{$feature_defaults{$_}} } : $feature_defaults{$_}}
+      keys %feature_defaults,
    };
    $self->init;
    return $self;
@@ -250,19 +262,18 @@ sub init {
 }
 
 {
-   # Create a read-write accessor for each enabling property in fs_opts
-   no strict 'refs';  ##no critic(NoStrict)
-   my $opts = __PACKAGE__->new->{fs_opts};
-   for my $field (keys %{$opts}) {
-      *{'test_'.$field} = sub {
+   # Create a read-write accessor for each enabling feature
+   no strict 'refs';  ## no critic(NoStrict)
+   for my $field (keys %feature_defaults) {
+      *{'enable_test_'.$field} = sub {
          return $_[0]->{fs_opts}->{$field} if @_ == 1;
          return $_[0]->{fs_opts}->{$field} = $_[1] if @_ == 2;
          croak 'wrong number of arguments to ' . $field;
       };
-      my $val = $opts->{$field};
+      my $val = $feature_defaults{$field};
       if (ref $val) {
          for my $subfield (keys %{$val}) {
-            *{'test_'.$subfield} = sub {
+            *{'enable_test_'.$subfield} = sub {
                return $_[0]->{fs_opts}->{$field} && $_[0]->{fs_opts}->{$field}->{$subfield} if @_ == 1;
                return ($_[0]->{fs_opts}->{$field} ||= {})->{$subfield} = $_[1] if @_ == 2;
                croak 'wrong number of arguments to ' . $subfield;
@@ -270,6 +281,27 @@ sub init {
          }
       }
    }
+}
+
+sub enable_test_all {
+   my ($self, @arg) = @_;
+   return $self->_enable_test_all($self->{fs_opts}, @arg);
+}
+sub _enable_test_all {
+   my ($self, $hash, @arg) = @_;
+
+   my $all_set = 1;
+   for my $key (keys %{$hash}) {
+      if (ref $hash->{$key}) {
+         $all_set = $self->_enable_test_all($hash->{$key}, @arg) && $all_set; #recurse
+      } else {
+         if (@arg) {
+            $hash->{$key} = $arg[0] ? 1 : 0;
+         }
+         $all_set &&= $hash->{$key};
+      }
+   }
+   return $all_set;
 }
 
 =item setup()
@@ -326,8 +358,10 @@ sub _cleandir {
       next if q{..} eq $file;
       my $path = File::Spec->catfile($dir, $file);
       die 'Internal error: escaped the temp space!' if length $path <= length $self->{mountdir};
-      die 'nonsense missing file: ' . $path if !-e $path;
-      if (-d $path) {
+      die 'nonsense missing file: ' . $path if !-l $path && !-e $path;
+      if (-l $path) {
+         unlink $path or die $OS_ERROR;
+      } elsif (-d $path) {
          $self->_cleandir($path);
          rmdir $path or die $OS_ERROR;
       } else {
@@ -348,19 +382,25 @@ version number when that test was introduced.  It's used like this:
 
 =cut
 
-sub Introduced : ATTR(CODE) { ##no critic(MixedCase)
+# http://use.perl.org/~ChrisDolan/journal/34906
+# http://use.perl.org/~ChrisDolan/journal/34920
+
+sub Introduced : ATTR(CODE) { ## no critic(MixedCase)
    my ($class, $symbol, $code_ref, $attr, $introduced_version) = @_;
    if ($symbol eq 'ANON') {
       warn 'cannot test anonymous subs - you probably loaded ' . __PACKAGE__ . ' too late.' .
           ' (after the CHECK block was run)';
    } else {
       # Wrap the sub in a version test
-      no warnings 'redefine';  ##no critic(TestingAndDebugging::ProhibitNoWarnings)
+      no warnings 'redefine';  ## no critic(TestingAndDebugging::ProhibitNoWarnings)
       *{$symbol} = sub {
-         local $TODO = $_[0]->_compatible($introduced_version); ## no critic(Local)
+         no strict 'refs';  ## no critic(TestingAndDebugging::ProhibitNoStrict)
+         local ${$class.'::TODO'} = $_[0]->_compatible($introduced_version); ## no critic(Local)
          $code_ref->(@_);
       };
-      #print STDERR "record $class\::$name as $args\n";
+
+      #my $name = *{$symbol}{NAME};
+      #print STDERR "record $class\::$name as $introduced_version\n";
    }
    return;
 }
@@ -391,27 +431,41 @@ Subfeatures must be separated from their parent features by a C</>.  For example
      ok(utime($now, $now, $file));
   }
 
-Look at the source code for C<new()> to see the supported features and
-subfeatures.  The C<test_*> methods above describe the all the
+Look at the source code for C<%feature_defaults> to see the supported features and
+subfeatures.  The C<enable_test_*> methods above describe the all the
 features, but in those methods the subfeature names are flattened.
 
 =cut
 
-sub Features : ATTR(CODE) { ##no critic(MixedCase)
+sub Features : ATTR(CODE) { ## no critic(MixedCase)
    my ($class, $symbol, $code_ref, $attr, $features) = @_;
    if ($symbol eq 'ANON') {
-      warn 'cannot test anonymous subs - you probably loaded ' . __PACKAGE__ . ' too late.' .
+      warn 'cannot test anonymous subs - you probably loaded ' . $class . ' too late.' .
           ' (after the CHECK block was run)';
    } else {
+      # HACK: work around for Test:::Class v0.24 -- can't call num_method_tests from the wrong package
+      # See http://rt.cpan.org//Ticket/Display.html?id=30836
+      {
+         no strict 'refs';  ## no critic(TestingAndDebugging::ProhibitNoStrict)
+         if (! defined &{$class . '::num_method_tests__workaround'}) {
+            eval "package $class;" . <<'CODE'; ## no critic(ProhibitStringyEval)
+               sub num_method_tests__workaround {
+                  my ($class, @args) = @_;
+                  return $class->num_method_tests(@args);
+               }
+CODE
+         }
+      }
+
       my @features = split m/,\s*/xms, $features;
       my $name = *{$symbol}{NAME};
       # Wrap the sub in a feature test
-      no warnings 'redefine';  ##no critic(TestingAndDebugging::ProhibitNoWarnings)
+      no warnings 'redefine';  ## no critic(TestingAndDebugging::ProhibitNoWarnings)
       *{$symbol} = sub {
        SKIP: {
-          my $blocking_feature = $_[0]->_blocking_feature(@features);
+          my $blocking_feature = _blocking_feature(__PACKAGE__, $_[0], @features);
           if ($blocking_feature) {
-             my $numtests = __PACKAGE__->num_method_tests($name);
+             my $numtests = $class->num_method_tests__workaround($name);
              skip 'feature unsupported: ' . $blocking_feature, $numtests;
           }
           $code_ref->(@_);
@@ -421,9 +475,10 @@ sub Features : ATTR(CODE) { ##no critic(MixedCase)
    return;
 }
 sub _blocking_feature {
-   my ($self, @features) = @_;
-   return if $self->{fs_opts}->{all};
+   my ($pkg, $self, @features) = @_;
+
    for my $feature (@features) {
+      return $feature . ' (no OS support)' if $feature_disabled{$feature};
       my $opts = $self->{fs_opts};
       for my $part (split m{/}xms, $feature) {
          return $feature if !ref $opts;
@@ -433,22 +488,6 @@ sub _blocking_feature {
    }
    return;
 }
-
-
-sub _compatibility_test : Test(1) : Introduced('0.02') {
-   # introduced in v0.02 I<solely> to test the compatibility feature.
-   my ($self) = @_;
-   pass('compatibility_test');
-   return;
-}
-
-sub _features_test : Test(1) : Introduced('0.02') : Features('features_test') {
-   # introduced in v0.02 I<solely> to test the 'features' feature.
-   my ($self) = @_;
-   pass('features_test');
-   return;
-}
-
 
 =item stat_dir(), introduced in v0.01
 
@@ -710,20 +749,43 @@ sub symlink_create : Test(10) : Introduced('0.02') : Features('symlink') {
    return;
 }
 
+=item symlink_follow(), introduced in v0.04
+
+=cut
+
+sub symlink_follow : Test(11) : Introduced('0.04') : Features('symlink') {
+   my ($self) = @_;
+   my $srcdir = $self->_file('/symlink_target');
+   my $srcfile = $self->_file('/symlink_target/file.txt');
+   my $s = $self->_file('/symlink_follow');
+   my $symfile = $self->_file('/symlink_follow/file.txt');
+   mkdir $srcdir or die $OS_ERROR;
+   my $content = 'content';
+   $self->_write_file($srcfile, $content);
+   ok(-e $srcfile, 'symlink source exists');
+   ok(symlink($srcdir, $s), 'created symlink') or die $OS_ERROR;
+   ok(-e $s, 'symlink exists');
+   ok(-l $s, 'symlink is a symlink');
+   ok(-d $s, 'symlink src is a dir');
+   ok(!-f $s, 'symlink src is not a file');
+   is(-s $symfile, length $content, 'size of file though symlink size is size of content');
+   is($self->_read_file($symfile), $content, 'read file through newly created symlink');
+   unlink $symfile or die $OS_ERROR;
+   ok(-e $s, 'symlink not deleted');
+   ok(-e $srcdir, 'symlink target dir is not deleted');
+   ok(!-e $srcfile, 'file through symlink is deleted');
+   return;
+}
+
 =item xattr_list(), introduced in v0.02
 
 =cut
 
 sub xattr_list : Test(1) : Introduced('0.02') : Features('xattr') {
    my ($self) = @_;
- SKIP: {
-      if (!$CAN_USE_XATTR) {
-         skip 'Optional File::ExtAttr not found', $self->num_method_tests('xattr_list');
-      }
-      my $f = $self->_file(q{/});
-      my @attrs = File::ExtAttr::listfattr($f);
-      ok(@attrs == 0 || defined $attrs[0], 'got xattr list');
-   }
+   my $f = $self->_file(q{/});
+   my @attrs = File::ExtAttr::listfattr($f);
+   ok(@attrs == 0 || defined $attrs[0], 'got xattr list');
    return;
 }
 
@@ -733,59 +795,40 @@ sub xattr_list : Test(1) : Introduced('0.02') : Features('xattr') {
 
 sub xattr_set : Test(9) : Introduced('0.02') : Features('xattr') {
    my ($self) = @_;
- SKIP: {
-      if (!$CAN_USE_XATTR) {
-         skip 'Optional File::ExtAttr not found', $self->num_method_tests('xattr_list');
-      }
-      my $f = $self->_file('/foo');
-      $self->_write_file($f);
 
-      my $xattr_key = 'org.cpan.cdolan';
-      my $xattr_value = 'test';
-      my $xattr_replace = 'test2';
+   my $f = $self->_file('/foo');
+   $self->_write_file($f);
 
-      # just in case, clean up.  This fails if the value is '0' but that should never happen!
-      if (File::ExtAttr::getfattr($f, $xattr_key)) {
-         File::ExtAttr::delfattr($f, $xattr_key);
-      }
-      {
-         # File::ExtAttr doesn't look at $^W or 'no warnings'.  Grr...
-         local $SIG{__WARN__} = sub {};
-         ok(!File::ExtAttr::setfattr($f, $xattr_key, $xattr_value, {replace => 1}), 'cannot replace missing xattr');
-      }
-      ok(File::ExtAttr::setfattr($f, $xattr_key, $xattr_value, {create => 1}), 'create xattr');
-      is(File::ExtAttr::getfattr($f, $xattr_key), $xattr_value, 'get xattr');
-      ok((any {$xattr_key eq $_} File::ExtAttr::listfattr($f)), 'list xattr');
-      {
-         local $SIG{__WARN__} = sub {};
-         ok(!File::ExtAttr::setfattr($f, $xattr_key, $xattr_value, {create => 1}), 'cannot create existing xattr');
-      }
-      ok(File::ExtAttr::setfattr($f, $xattr_key, $xattr_replace, {replace => 1}), 'replace xattr');
-      is(File::ExtAttr::getfattr($f, $xattr_key), $xattr_replace, 'get xattr');
-      ok(File::ExtAttr::delfattr($f, $xattr_key), 'delete xattr');
-      # Some implementations return undef, some return q{}
-      my $get = File::ExtAttr::getfattr($f, $xattr_key);
-      ok(!defined $get || q{} eq $get, 'xattr deleted');
+   my $xattr_key = 'org.cpan.cdolan';
+   my $xattr_value = 'test';
+   my $xattr_replace = 'test2';
 
-      unlink $f;
+   # just in case, clean up.  This fails if the value is '0' but that should never happen!
+   if (File::ExtAttr::getfattr($f, $xattr_key)) {
+      File::ExtAttr::delfattr($f, $xattr_key);
    }
+   {
+      # File::ExtAttr doesn't look at $^W or 'no warnings'.  Grr...
+      local $SIG{__WARN__} = sub {};
+      ok(!File::ExtAttr::setfattr($f, $xattr_key, $xattr_value, {replace => 1}), 'cannot replace missing xattr');
+   }
+   ok(File::ExtAttr::setfattr($f, $xattr_key, $xattr_value, {create => 1}), 'create xattr');
+   is(File::ExtAttr::getfattr($f, $xattr_key), $xattr_value, 'get xattr');
+   ok((any {$xattr_key eq $_} File::ExtAttr::listfattr($f)), 'list xattr');
+   {
+      local $SIG{__WARN__} = sub {};
+      ok(!File::ExtAttr::setfattr($f, $xattr_key, $xattr_value, {create => 1}), 'cannot create existing xattr');
+   }
+   ok(File::ExtAttr::setfattr($f, $xattr_key, $xattr_replace, {replace => 1}), 'replace xattr');
+   is(File::ExtAttr::getfattr($f, $xattr_key), $xattr_replace, 'get xattr');
+   ok(File::ExtAttr::delfattr($f, $xattr_key), 'delete xattr');
+   # Some implementations return undef, some return q{}
+   my $get = File::ExtAttr::getfattr($f, $xattr_key);
+   ok(!defined $get || q{} eq $get, 'xattr deleted');
+
+   unlink $f;
    return;
 }
-
-#       xattr => 1,
-#       time => {
-#          utime => 1,
-#          atime => 1,
-#          ctime => 1,
-#       },
-#       perm => 1,
-#       special => {
-#          fifo => 1,
-#       },
-#       symlink => 1,
-#       hardlink => 1,
-#       nlink => 1,
-#       chown => 1,
 
 ######### helpers ########
 
@@ -818,7 +861,7 @@ sub _append_file {
 sub _read_file {
    my ($self, $f) = @_;
    open my $fh, '<', $f or die $OS_ERROR;
-   my $content = do { $/ = undef; <$fh> };   ##no critic(PunctuationVars)
+   my $content = do { local $INPUT_RECORD_SEPARATOR = undef; <$fh> };
    close $fh or die $OS_ERROR;
    return $content;
 }

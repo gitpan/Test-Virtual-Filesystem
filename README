@@ -9,9 +9,9 @@ SYNOPSIS
 
         use Test::Virtual::Filesystem;
         my $test = Test::Virtual::Filesystem->new('/path/to/test');
-        $test->test_xattr(1);
-        $test->test_chown(1);
-        $test->test_atime(1);
+        $test->enable_test_xattr(1);
+        $test->enable_test_chown(1);
+        $test->enable_test_atime(1);
         $test->runtests;
 
 LICENSE
@@ -95,48 +95,52 @@ METHODS
 
 PROPERTIES
     The following accessor/mutator methods exist to turn on/off various
-    features. they all behave in usual Perl fashion: with no argument, they
+    features. They all behave in usual Perl fashion: with no argument, they
     return the current value. With one argument, they set the current value
-    and return void.
+    and return the newly set value.
 
-    $self->test_all()
-        Turns on all the tests. Default false.
+    $self->enable_test_all()
+        As a getter, checks whether all of the other tests are enabled.
 
-    $self->test_xattr()
+        As a setter, turns on/off all the tests.
+
+    $self->enable_test_xattr()
         Default false.
 
-    $self->test_time()
+    $self->enable_test_time()
         Default true. If set false, it also sets `atime', `ctime' and
         `utime' false.
 
-    $self->test_atime()
+    $self->enable_test_atime()
         Default false.
 
-    $self->test_utime()
+    $self->enable_test_utime()
         Default true.
 
-    $self->test_ctime()
+    $self->enable_test_ctime()
         Default true.
 
-    $self->test_permissions()
+    $self->enable_test_permissions()
         Default false.
 
-    $self->test_special()
+    $self->enable_test_special()
         Default true. If set false, it also sets `fifo' false.
 
-    $self->test_fifo()
+    $self->enable_test_fifo()
         Default false. AKA named pipes.
 
-    $self->test_symlink()
-        Default true, except `$^O eq 'MSWin32'' where it defaults to false.
+    $self->enable_test_symlink()
+        Default true, except for platforms that do not support symlinks (for
+        example MSWin32 and cygwin) as determined by
+        `$Config::Config{d_symlink}'.
 
-    $self->test_hardlink()
+    $self->enable_test_hardlink()
         Default true.
 
-    $self->test_nlink()
+    $self->enable_test_nlink()
         Default true.
 
-    $self->test_chown()
+    $self->enable_test_chown()
         Default false.
 
 TEST CASES
@@ -176,9 +180,10 @@ TEST CASES
              ok(utime($now, $now, $file));
           }
 
-        Look at the source code for `new()' to see the supported features
-        and subfeatures. The `test_*' methods above describe the all the
-        features, but in those methods the subfeature names are flattened.
+        Look at the source code for `%feature_defaults' to see the supported
+        features and subfeatures. The `enable_test_*' methods above describe
+        the all the features, but in those methods the subfeature names are
+        flattened.
 
     stat_dir(), introduced in v0.01
     read_dir(), introduced in v0.01
@@ -195,6 +200,7 @@ TEST CASES
     write_rmdir(), introduced in v0.01
     write_subdir(), introduced in v0.01
     symlink_create(), introduced in v0.02
+    symlink_follow(), introduced in v0.04
     xattr_list(), introduced in v0.02
     xattr_set(), introduced in v0.02
 SEE ALSO

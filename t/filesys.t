@@ -8,7 +8,9 @@ use Test::Virtual::Filesystem;
 my $tmpdir = File::Temp::tempdir('filesys_test_XXXX', CLEANUP => 1, TMPDIR => 1);
 my $test = Test::Virtual::Filesystem->new({mountdir => $tmpdir});
 if ($ENV{TEST_AUTHOR}) {
-   $test->test_all(1);
+   $test->enable_test_all(1);
+} else {
+   diag 'Set environment variable TEST_AUTHOR to force all tests';
 }
 $test->runtests;
 

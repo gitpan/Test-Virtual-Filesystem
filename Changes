@@ -1,7 +1,25 @@
 # History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
 
+0.04 :
+     - Released: 2007 Nov 18
+     - Summary: Renamed test_* methods from v0.03; Subclassing; Bug fixes
+
+     - Incompatibility: renamed 'test_*' methods to 'enable_test_*' to avoid colliding with other methods
+
+     - Fix: Add List::MoreUtils to Build.PL/Makefile.PL
+       Credit: cpan-tester David Cantrell
+     - Fix: Turn off symlink and chown for Win32; better support for OS non-features
+       Credit: cpan-tester stro@cpan.org, MSWin32 (for symlink part)
+     - Fix: Enable subclassing (via a hack/workaround for Test::Class 0.24 -- see rt.cpan.org 30836)
+
+     - Internals: Moved self-test tests into subclasses in t/*.t
+
+     - TODO: Remove the above workaround if a new version of Test::Class allows using num_method_tests from a foreign package
+
+     - Press: http://use.perl.org/~ChrisDolan/journal/34920
+
 0.03 :
-     - Released: 2007 Nov xxx
+     - Released: 2007 Nov 16
      - Summary: Important bug fixes
 
      - Fix: Don't use "\n" since it is one or two characters, depending on platform
@@ -22,12 +40,12 @@
      - Feature: new test to read/write extended attributes
      - Feature: new test to check that dirs have non-zero size
 
-     - New prerequisite: (optional) File::ExtAttr
+     - Prerequisites: (optional) File::ExtAttr v0.08
 
      - Press: http://use.perl.org/article.pl?sid=07/11/16/0925222
 
 0.01 :
      - Released: 2007 Nov 14
      - Summary: initial release
-     - Known bugs: very incomplete collection of tests. See CAVEATS in documentation
+     - Caveats: very incomplete collection of tests. See CAVEATS in documentation
 
