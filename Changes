@@ -1,5 +1,12 @@
 # History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
 
+0.05 :
+     - Released: 2007 Nov 19
+     - Summary: Fix for non-English localized Perl
+
+     - Fix: I was checking for English $OS_ERROR messages, which failed in non-English localizations of Perl.  Changed to numeric $OS_ERROR
+       Credit: cpan-tester Andreas Koenig
+
 0.04 :
      - Released: 2007 Nov 18
      - Summary: Renamed test_* methods from v0.03; Subclassing; Bug fixes

@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-11-18 23:08:27 -0600 (Sun, 18 Nov 2007) $
+#     $Date: 2007-11-19 00:50:52 -0600 (Mon, 19 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 711 $
+# $Revision: 713 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -17,10 +17,11 @@ use File::Spec;
 use List::MoreUtils qw(any);
 use Attribute::Handlers;
 use Config qw();
+use POSIX qw(:errno_h);
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 # Currently this must not nest more than one level deep!
 # (due to implementation of deep copy in new() and the static accessor/mutator constructor)
@@ -542,7 +543,7 @@ sub read_dir_fail : Test(2) : Introduced('0.01') {
    eval {
       $self->_read_dir($f);
    };
-   like($EVAL_ERROR && qq{$EVAL_ERROR}, qr/No [ ] such/xms, 'read non-existent dir');
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'read non-existent dir');
    ok(!-e $f, 'did not make dir');
    return;
 }
@@ -558,7 +559,7 @@ sub read_file_fail : Test(2) : Introduced('0.01') {
    eval {
       $self->_read_file($f);
    };
-   like($EVAL_ERROR && qq{$EVAL_ERROR}, qr/No [ ] such/xms, 'read non-existent file');
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'read non-existent file');
    ok(!-e $f, 'did not make file');
    return;
 }
@@ -601,7 +602,7 @@ sub write_file_subdir_fail : Test(2) : Introduced('0.01') {
    eval {
       $self->_write_file($f, $content);
    };
-   like($EVAL_ERROR && qq{$EVAL_ERROR}, qr/No [ ] such/xms, 'write to non-existent folder');
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'write to non-existent folder');
    ok(!-f $f, 'did not make file');
    return;
 }
@@ -634,7 +635,7 @@ sub write_append_file : Test(2) : Introduced('0.01') {
 #    eval {
 #       $self->_append_file($f, $content);
 #    };
-#    like($EVAL_ERROR && qq{$EVAL_ERROR}, qr/No [ ] such/xms, 'append to non-existent file');
+#    is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'append to non-existent file');
 #    ok(!-f $f, 'did not make file');
 #    return;
 # }
@@ -690,7 +691,7 @@ sub write_mkdir_fail : Test(2) : Introduced('0.01') {
    eval {
       mkdir $f or die $OS_ERROR;
    };
-   like($EVAL_ERROR && qq{$EVAL_ERROR}, qr/No [ ] such/xms, 'mkdir at non-existent path');
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'mkdir at non-existent path');
    ok(!-d $f, 'did not make dir');
    return;
 }
