@@ -1,17 +1,32 @@
 # History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
 
+0.06 :
+     - Released: 2007 Nov 20
+     - Summary: Perl prereq to 5.8.0; new truncate, symlink, a/m/ctime tests
+
+     - Incompatibility: Upped prereq to Perl 5.8.0 instead of 5.6.0
+     - Incompatibility: (minor) renamed "enable_test_utime" to "enable_test_mtime"
+
+     - Fix: Specify actual minimum of Perl 5.8.0; 5.6.x bombed on local through ref
+       Credit: cpan-tester David Cantrell
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/790313
+
+     - Internals: Removed unneeded prereqs from Build.PL and Filesystem.pm
+
 0.05 :
      - Released: 2007 Nov 19
      - Summary: Fix for non-English localized Perl
 
-     - Fix: I was checking for English $OS_ERROR messages, which failed in non-English localizations of Perl.  Changed to numeric $OS_ERROR
+     - Fix: Check numeric $! against POSIX errno instead of string $! against english
        Credit: cpan-tester Andreas Koenig
+       RT: http://rt.cpan.org/Ticket/Display.html?id=30839
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/2007/11/msg784219.html
 
 0.04 :
      - Released: 2007 Nov 18
      - Summary: Renamed test_* methods from v0.03; Subclassing; Bug fixes
 
-     - Incompatibility: renamed 'test_*' methods to 'enable_test_*' to avoid colliding with other methods
+     - Incompatibility: Renamed 'test_*' methods to 'enable_test_*'
 
      - Fix: Add List::MoreUtils to Build.PL/Makefile.PL
        Credit: cpan-tester David Cantrell
@@ -21,7 +36,7 @@
 
      - Internals: Moved self-test tests into subclasses in t/*.t
 
-     - TODO: Remove the above workaround if a new version of Test::Class allows using num_method_tests from a foreign package
+     - TODO: Remove above workaround if RT 30836 is resolved
 
      - Press: http://use.perl.org/~ChrisDolan/journal/34920
 
@@ -35,7 +50,7 @@
      - Fix: Disable the stat_dir_size() test because it is too filesystem-dependent
        Credit: cpan-tester srezic@cpan.org, cygwin
 
-     - Fix: Make xattr test more tolerant of getxattr() implementations -- some return undef, some return q{}
+     - Fix: Make xattr test more tolerant of getxattr() implementations (undef vs. '')
 
 0.02 :
      - Released: 2007 Nov 16

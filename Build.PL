@@ -8,9 +8,8 @@ Module::Build->new(
       'perl' => '5.8.0',
       'List::MoreUtils' => 0,
       'Test::Class' => '0.24',
-      'Test::More' => 0.62,  # needs to be v0.62 for Test::Memory::Cycle v1.02
-      'Readonly' => 0,
-      'Class::Accessor::Fast' => 0,
+      'Test::More' => 0.62,
+      'Attribute::Handlers' => 0, # implied by Test::Class, but just in case...
    },
    recommends => {
       # Optional for testing extended attributes
@@ -19,7 +18,6 @@ Module::Build->new(
       # Optional in tests, skipped if not present
       'Test::Pod' => 0,
       'Test::Pod::Coverage' => 0,
-      'Test::Memory::Cycle' => '1.02',
    },
    create_readme => 1,
    create_makefile_pl => 'traditional',

@@ -1,27 +1,27 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-11-19 00:50:52 -0600 (Mon, 19 Nov 2007) $
+#     $Date: 2007-11-20 22:53:04 -0600 (Tue, 20 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 713 $
+# $Revision: 715 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
 
 use warnings;
 use strict;
+use 5.008;
+
 use English qw(-no_match_vars);
 use Carp qw(croak);
-use File::Temp qw();
-use File::Path qw();
 use File::Spec;
 use List::MoreUtils qw(any);
 use Attribute::Handlers;
-use Config qw();
+use Config;
 use POSIX qw(:errno_h);
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 # Currently this must not nest more than one level deep!
 # (due to implementation of deep copy in new() and the static accessor/mutator constructor)
@@ -29,7 +29,7 @@ my %feature_defaults = (
       xattr => 0,
       time => {
          atime => 0,
-         utime => 1,
+         mtime => 1,
          ctime => 1,
       },
       permissions => 0,
@@ -37,15 +37,18 @@ my %feature_defaults = (
          fifo => 0,
       },
       symlink => 1,
-      hardlink => 1,
-      nlink => 1,
+      hardlink => {
+         nlink => 1,
+      },
       chown => 0,
 );
 
-# if true, the feature is disabled no matter what
+# if true, the feature is disabled no matter what.  For example, most versions
+# of Windows at this writing do not support symlinks at all, regardless of
+# whether your virtual filesystem supports them
 my %feature_disabled = (
-   $Config::Config{d_symlink} ? () : (symlink => 1),  ## no critic(ProhibitPackageVars)
-   $Config::Config{d_chown} ? () : (chown => 1),      ## no critic(ProhibitPackageVars)
+   $Config{d_symlink} ? () : (symlink => 1),
+   $Config{d_chown} ? () : (chown => 1),
    eval {require File::ExtAttr; 1;} ? () : (xattr => 1),
 );
 
@@ -60,16 +63,22 @@ Test::Virtual::Filesystem - Validate a filesystem
 =head1 SYNOPSIS
 
     use Test::Virtual::Filesystem;
-    Test::Virtual::Filesystem->new('/path/to/test')->runtests;
+    Test::Virtual::Filesystem->new({mountdir => '/path/to/test'})->runtests;
 
 or with more customization:
 
     use Test::Virtual::Filesystem;
-    my $test = Test::Virtual::Filesystem->new('/path/to/test');
+    my $test = Test::Virtual::Filesystem->new({mountdir => '/path/to/test', compatible => '0.03'});
     $test->enable_test_xattr(1);
     $test->enable_test_chown(1);
     $test->enable_test_atime(1);
     $test->runtests;
+
+See the file F<t/filesys.t> in this distribution or the file F<t/fusepdf.t> in
+the L<Fuse::PDF> distribution for thorough examples.
+
+WARNING: all of the files in the C<mountdir> will be deleted in the C<teardown>
+method so BE CAREFUL that you specify the right folder!
 
 =head1 LICENSE
 
@@ -80,15 +89,28 @@ under the same terms as Perl itself.
 
 =head1 DESCRIPTION
 
-If you are creating a filesystem, say via L<Fuse> or
-L<Filesys::Virtual>, you need a fairly mundane set of tests to try out
-lots of typical filesystem operations.  This package attempts to
-accumulate a bunch of those tests to make it easier for you to test
-your filesystem.
+If you are creating a filesystem, say via L<Fuse> or L<Filesys::Virtual>, you
+need a fairly mundane set of tests to try out lots of typical filesystem
+operations.  This package attempts to accumulate a bunch of those tests into a
+handy suite to make it easier for you to test your filesystem.
+
+This suite is based on C<Test::Class>, a fantastic library for organizing
+tests into bite-sized bundles.  The power of Test::Class lets you select a
+subset of tests to run at author time.  For example, when I was working on the
+extended attribute (aka C<xattr>) tests, I found myself typing this:
+
+  env TEST_METHOD='xattr_.*' perl -Ilib t/filesys.t
+
+which runs just the test methods that begin with C<xattr_>.
+
+There are several methods that let you turn on or off a subset of the tests.
+For example, if you do not intend that your filesystem will support symbolic
+links, you can invoke C<$test->enable_test_symlink(0)> in your test program
+just before you call C<$test->runtests>.
 
 =head1 COMPATIBILITY POLICY
 
-Every time we add a new test to this suite, we annotate it with a
+Every time I add a new test to this suite, I annotate it with a
 version number.  If client code specifies an expected version number
 (say, 1.10) and it's running against a newer version or this module
 (say, 1.20) then any newer test will be marked as a TODO test.  That
@@ -100,49 +122,47 @@ without worrying about breaking existing CPAN modules.
 
 =head1 CAVEATS AND LIMITATIONS
 
-This test class needs a more complete suite of test cases.  In
-particular, tests are needed for the following filesystem features:
+This module needs a more complete suite of test cases.  In particular, tests
+are needed for the following filesystem features:
 
-    extended attributes (xattr)
-    multiple symlinks
-    recursive symlinks
     hardlinks
-    a/u/ctime
     nlink
-    chown
+    rename
+    seek/rewinddir, tell/telldir
+    read, sysread, syswrite
+    overwrite (with open '+<')
     deep directories
     very full directories
     large files
     binary files
-    files with awkward characters: EOF, NUL
+    files with awkward content: EOF, NUL, invalid unicode
     non-ASCII filenames (maybe constructor should specify the encoding?)
     permissions
     special file types (fifos, sockets, character and block devices, etc)
-    file locking
-    threading and re-entrancy
-    truncate
+    chown
     binmode
     eof
     fileno
-    seek/rewinddir, tell/telldir
-    read, sysread, syswrite
-    async I/O?
+    statfs (AKA `df` or `mount`)
+    file locking
+    threading and re-entrancy
+    async I/O??
 
 Any help writing tests (or adapting tests from existing suites) will
 be appreciated!
 
 =head1 METHODS
 
-This is a subclass of L<Test::Class>.  All methods from that class are
+This module is a subclass of L<Test::Class>.  All methods from that class are
 available, particularly C<runtests()>.
 
 =over
 
 =item $pkg->new({mountdir =E<gt> $mountdir, ...})
 
-Create a new test which will operate on files contained within the
-specified mount directory.  WARNING: any and all files and folders in
-that mount directory will be deleted!
+Create a new test suite which will operate on files contained within the
+specified mount directory.  WARNING: any and all files and folders in that
+mount directory will be deleted!
 
 The supported options are:
 
@@ -190,13 +210,13 @@ Default false.
 
 =item $self->enable_test_time()
 
-Default true.  If set false, it also sets C<atime>, C<ctime> and C<utime> false.
+Default true.  If set false, it also sets C<atime>, C<mtime> and C<ctime> false.
 
 =item $self->enable_test_atime()
 
 Default false.
 
-=item $self->enable_test_utime()
+=item $self->enable_test_mtime()
 
 Default true.
 
@@ -223,11 +243,11 @@ MSWin32 and cygwin) as determined by C<$Config::Config{d_symlink}>.
 
 =item $self->enable_test_hardlink()
 
-Default true.
+AKA the C<link()> function.  Default true.  If set false, this also sets C<nlink> false.
 
 =item $self->enable_test_nlink()
 
-Default true.
+Count hard links.  Default true.
 
 =item $self->enable_test_chown()
 
@@ -427,7 +447,7 @@ the test.  The features should be listed as a comma-separated list:
 
 Subfeatures must be separated from their parent features by a C</>.  For example:
 
-  sub atime_utime_set : Tests(1) : Features('time/atime, time/utime') {
+  sub atime_mtime_set : Tests(1) : Features('time/atime, time/mtime') {
      my $now = time;
      ok(utime($now, $now, $file));
   }
@@ -444,33 +464,13 @@ sub Features : ATTR(CODE) { ## no critic(MixedCase)
       warn 'cannot test anonymous subs - you probably loaded ' . $class . ' too late.' .
           ' (after the CHECK block was run)';
    } else {
-      # HACK: work around for Test:::Class v0.24 -- can't call num_method_tests from the wrong package
-      # See http://rt.cpan.org//Ticket/Display.html?id=30836
-      {
-         no strict 'refs';  ## no critic(TestingAndDebugging::ProhibitNoStrict)
-         if (! defined &{$class . '::num_method_tests__workaround'}) {
-            eval "package $class;" . <<'CODE'; ## no critic(ProhibitStringyEval)
-               sub num_method_tests__workaround {
-                  my ($class, @args) = @_;
-                  return $class->num_method_tests(@args);
-               }
-CODE
-         }
-      }
-
-      my @features = split m/,\s*/xms, $features;
-      my $name = *{$symbol}{NAME};
+      my @features = split m/\s*,\s*/xms, $features;
       # Wrap the sub in a feature test
       no warnings 'redefine';  ## no critic(TestingAndDebugging::ProhibitNoWarnings)
       *{$symbol} = sub {
-       SKIP: {
-          my $blocking_feature = _blocking_feature(__PACKAGE__, $_[0], @features);
-          if ($blocking_feature) {
-             my $numtests = $class->num_method_tests__workaround($name);
-             skip 'feature unsupported: ' . $blocking_feature, $numtests;
-          }
-          $code_ref->(@_);
-         }
+         my $blocking_feature = _blocking_feature(__PACKAGE__, $_[0], @features);
+         return $blocking_feature if $blocking_feature;
+         return $code_ref->(@_);
       };
    }
    return;
@@ -778,6 +778,196 @@ sub symlink_follow : Test(11) : Introduced('0.04') : Features('symlink') {
    return;
 }
 
+=item symlink_deep(), introduced in v0.06
+
+=cut
+
+sub symlink_deep : Test(21) : Introduced('0.06') : Features('symlink') {
+   my ($self) = @_;
+   # follow through a chain of non-looping symlinks
+   my $srcdir = $self->_file('/symlink_target');
+   my $srcfile = $self->_file('/symlink_target/file.txt');
+   my @s = map {$self->_file('/symlink_' . $_)} 1 .. 10; ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
+
+   mkdir $srcdir or die $OS_ERROR;
+   my $content = 'content';
+   $self->_write_file($srcfile, $content);
+   ok(-e $srcfile, 'symlink source exists');
+
+   ok((symlink $srcdir, $s[0]), 'created symlink') or die $OS_ERROR;
+   for my $i (1..$#s) {
+      ok((symlink $s[$i-1], $s[$i]), 'created symlink') or die $OS_ERROR;
+   }
+   my $symfile = $self->_file('/symlink_10/file.txt');
+   ok(-e $symfile, 'file exists');
+   ok(!-l $symfile, 'file is not a symlink');
+   ok(-f $symfile, 'file is a file');
+   ok(!-d $symfile, 'file is not a dir');
+   is(-s $symfile, length $content, 'size of file though symlink size is size of content');
+   is($self->_read_file($symfile), $content, 'read file through newly created symlink');
+   unlink $symfile or die $OS_ERROR;
+   ok(-e $s[0], 'symlink not deleted');
+   ok(-e $s[-1], 'symlink not deleted');
+   ok(-e $srcdir, 'symlink target dir is not deleted');
+   ok(!-e $srcfile, 'file through symlink is deleted');
+   return;
+}
+
+=item symlink_loop(), introduced in v0.06
+
+=cut
+
+sub symlink_loop : Test(2) : Introduced('0.06') : Features('symlink') {
+   my ($self) = @_;
+   my $s = $self->_file('/symlink_target');
+   ok((symlink $s, $s), 'created symlink') or die $OS_ERROR;
+   eval {
+      open my $fh, '<', $s or die $OS_ERROR;
+      close $fh;  ## no critic(InputOutput::RequireCheckedClose)
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ELOOP(), 'detected symlink loop');
+   
+   return;
+}
+
+=item truncate_file(), introduced in v0.06
+
+=cut
+
+sub truncate_file : Test(7) : Introduced('0.06') {
+   my ($self) = @_;
+   my $f = $self->_file(q{/truncate.txt});
+   my $content = 'content';
+
+   ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
+   $self->_write_file($f, $content);
+   is(-s $f, length $content, 'wrote test file');
+   ok((truncate $f, 4), 'truncate to 4 bytes') or die $OS_ERROR;
+   is(-s $f, 4, 'correct size');
+   ok((truncate $f, 0), 'truncate to 0 bytes') or die $OS_ERROR;
+   is(-s $f, 0, 'correct size');
+   ok((truncate $f, 0), 'truncate to 0 bytes') or die $OS_ERROR;
+   is(-s $f, 0, 'correct size');
+   return;
+}
+
+=item truncate_no_file(), introduced in v0.06
+
+=cut
+
+sub truncate_no_file : Test(1) : Introduced('0.06') {
+   my ($self) = @_;
+   my $f = $self->_file(q{/truncate.txt});
+   eval {
+      truncate $f, 0 or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'truncate non-existent file');
+   return;
+}
+
+=item truncate_file_no_dir(), introduced in v0.06
+
+=cut
+
+sub truncate_file_no_dir : Test(1) : Introduced('0.06') {
+   my ($self) = @_;
+   my $pseudo_dir = $self->_file(q{/dir});
+   my $f = $self->_file(q{/dir/truncate.txt});
+   $self->_write_file($pseudo_dir, 'foo');
+   eval {
+      truncate $f, 0 or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOTDIR(), 'truncate file in non-existent directory');
+   return;
+}
+
+=item truncate_dir(), introduced in v0.06
+
+=cut
+
+sub truncate_dir : Test(1) : Introduced('0.06') {
+   my ($self) = @_;
+   my $d = $self->_file(q{/truncate_dir});
+   mkdir $d or die $OS_ERROR;
+   eval {
+      truncate $d, 0 or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, EISDIR(), 'truncate dir');
+   return;
+}
+
+=item time_mtime_create(), introduced in v0.06
+
+=cut
+
+sub time_mtime_create : Test(2) : Introduced('0.06') : Features('time/mtime') {
+   my ($self) = @_;
+   my $f = $self->_file(q{/file.txt});
+
+   my $before = time;
+   $self->_write_file($f);
+   my $after = time;
+
+   my ($mtime) = (stat $f)[9];   ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
+   cmp_ok($mtime, q{>=}, $before, 'mtime vs. before time');
+   cmp_ok($mtime, q{<=}, $after, 'mtime vs. after time');
+   return;
+}
+
+=item time_ctime_create(), introduced in v0.06
+
+=cut
+
+sub time_ctime_create : Test(2) : Introduced('0.06') : Features('time/ctime') {
+   my ($self) = @_;
+   my $f = $self->_file(q{/file.txt});
+
+   my $before = time;
+   $self->_write_file($f);
+   my $after = time;
+
+   my ($ctime) = (stat $f)[10];   ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
+   cmp_ok($ctime, q{>=}, $before, 'ctime vs. before time');
+   cmp_ok($ctime, q{<=}, $after, 'ctime vs. after time');
+   return;
+}
+
+=item time_mtime_set(), introduced in v0.06
+
+=cut
+
+sub time_mtime_set : Test(1) : Introduced('0.06') : Features('time/mtime') {
+   my ($self) = @_;
+   my $f = $self->_file(q{/file.txt});
+
+   $self->_write_file($f);
+
+   ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
+   my ($old_atime, $old_mtime) = (stat $f)[8,9];
+   utime $old_atime, $old_mtime - 100, $f or die $OS_ERROR;
+   my ($new_atime, $new_mtime) = (stat $f)[8,9];
+   is($new_mtime, $old_mtime - 100, 'changed mtime');
+   return;
+}
+
+=item time_atime_set(), introduced in v0.06
+
+=cut
+
+sub time_atime_set : Test(1) : Introduced('0.06') : Features('time/atime') {
+   my ($self) = @_;
+   my $f = $self->_file(q{/file.txt});
+
+   $self->_write_file($f);
+
+   ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
+   my ($old_atime, $old_mtime) = (stat $f)[8,9];
+   utime $old_atime - 100, $old_mtime, $f or die $OS_ERROR;
+   my ($new_atime, $new_mtime) = (stat $f)[8,9];
+   is($new_atime, $old_atime - 100, 'changed atime');
+   return;
+}
+
 =item xattr_list(), introduced in v0.02
 
 =cut
@@ -880,6 +1070,38 @@ sub _read_dir {
 __END__
 
 =pod
+
+=back
+
+=head1 CODE PHILOSOPHY
+
+These are some coding/design rules for the tests:
+
+=over
+
+=item Use only core filesystem functions
+
+Don't use File::Slurp, File::Path, etc. because they abstract filesystem
+operations and make it less clear what we're testing.
+
+=item Keep the tests small
+
+Test as little as possible in each method.  Let authors know what's failed by
+the pattern of failing tests.  This also helps avoid needing to edit the tests later.
+
+=item Avoid editing methods
+
+Don't break published CPAN code.  If you want to test something new, write a new method.
+
+=item Try to use a few different filesystem functions as practical in one method
+
+For example, if you're testing C<chmod>, don't C<mkdir> or C<chown> unless
+you're writing a C<chmod_mkdir_chown> test.
+
+=item Minimize test infrastructure
+
+Use method attributes and Test::Class features to keep the test methods really
+simple.
 
 =back
 

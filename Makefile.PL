@@ -5,9 +5,8 @@ WriteMakefile
           'NAME' => 'Test::Virtual::Filesystem',
           'VERSION_FROM' => 'lib/Test/Virtual/Filesystem.pm',
           'PREREQ_PM' => {
-                           'Class::Accessor::Fast' => '0',
+                           'Attribute::Handlers' => '0',
                            'List::MoreUtils' => '0',
-                           'Readonly' => '0',
                            'Test::Class' => '0.24',
                            'Test::More' => '0.62'
                          },
