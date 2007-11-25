@@ -10,6 +10,7 @@ Module::Build->new(
       'Test::Class' => '0.24',
       'Test::More' => 0.62,
       'Attribute::Handlers' => 0, # implied by Test::Class, but just in case...
+      'Readonly' => 1.00,
    },
    recommends => {
       # Optional for testing extended attributes

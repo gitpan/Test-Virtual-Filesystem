@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-11-20 22:53:04 -0600 (Tue, 20 Nov 2007) $
+#     $Date: 2007-11-24 20:29:17 -0600 (Sat, 24 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 715 $
+# $Revision: 719 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -18,14 +18,17 @@ use List::MoreUtils qw(any);
 use Attribute::Handlers;
 use Config;
 use POSIX qw(:errno_h);
+use Readonly;
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
+
+Readonly::Scalar my $TIME_LENIENCE => 2; # seconds of tolerance between CPU clock and disk mtime
 
 # Currently this must not nest more than one level deep!
 # (due to implementation of deep copy in new() and the static accessor/mutator constructor)
-my %feature_defaults = (
+Readonly::Hash my %feature_defaults => (
       xattr => 0,
       time => {
          atime => 0,
@@ -46,7 +49,7 @@ my %feature_defaults = (
 # if true, the feature is disabled no matter what.  For example, most versions
 # of Windows at this writing do not support symlinks at all, regardless of
 # whether your virtual filesystem supports them
-my %feature_disabled = (
+Readonly::Hash my %feature_disabled => (
    $Config{d_symlink} ? () : (symlink => 1),
    $Config{d_chown} ? () : (chown => 1),
    eval {require File::ExtAttr; 1;} ? () : (xattr => 1),
@@ -733,17 +736,18 @@ sub write_subdir : Test(3) : Introduced('0.01') {
 
 sub symlink_create : Test(10) : Introduced('0.02') : Features('symlink') {
    my ($self) = @_;
-   my $src = $self->_file('/symlink_target');
+   my $target = 'symlink_target';
+   my $src = $self->_file("/$target");
    mkdir $src or die $OS_ERROR;
    ok(-e $src, 'symlink source exists');
    my $s = $self->_file('/symlink_create');
-   ok(symlink($src, $s), 'created symlink') or die $OS_ERROR;
+   ok((symlink $target, $s), 'created symlink') or die $OS_ERROR;
    ok(-e $s, 'symlink exists');
    ok(-l $s, 'symlink is a symlink');
    ok(-d $s, 'symlink src is a dir');
    ok(!-f $s, 'symlink src is not a file');
    is(-s $s, -s $src, 'symlink size is size of source');
-   is(readlink $s, $src, 'read newly created symlink');
+   is(readlink $s, $target, 'read newly created symlink');
    unlink $s or die $OS_ERROR;
    ok(!-e $s, 'symlink deleted');
    ok(-e $src, 'symlink source not deleted');
@@ -756,15 +760,16 @@ sub symlink_create : Test(10) : Introduced('0.02') : Features('symlink') {
 
 sub symlink_follow : Test(11) : Introduced('0.04') : Features('symlink') {
    my ($self) = @_;
-   my $srcdir = $self->_file('/symlink_target');
-   my $srcfile = $self->_file('/symlink_target/file.txt');
+   my $target = 'symlink_target';
+   my $srcdir = $self->_file("/$target");
+   my $srcfile = $self->_file("/$target/file.txt");
    my $s = $self->_file('/symlink_follow');
-   my $symfile = $self->_file('/symlink_follow/file.txt');
+   my $symfile = $s . '/file.txt';
    mkdir $srcdir or die $OS_ERROR;
    my $content = 'content';
    $self->_write_file($srcfile, $content);
    ok(-e $srcfile, 'symlink source exists');
-   ok(symlink($srcdir, $s), 'created symlink') or die $OS_ERROR;
+   ok((symlink $target, $s), 'created symlink') or die $OS_ERROR;
    ok(-e $s, 'symlink exists');
    ok(-l $s, 'symlink is a symlink');
    ok(-d $s, 'symlink src is a dir');
@@ -782,24 +787,28 @@ sub symlink_follow : Test(11) : Introduced('0.04') : Features('symlink') {
 
 =cut
 
-sub symlink_deep : Test(21) : Introduced('0.06') : Features('symlink') {
+sub symlink_deep : Test(17) : Introduced('0.06') : Features('symlink') {
    my ($self) = @_;
    # follow through a chain of non-looping symlinks
-   my $srcdir = $self->_file('/symlink_target');
-   my $srcfile = $self->_file('/symlink_target/file.txt');
-   my @s = map {$self->_file('/symlink_' . $_)} 1 .. 10; ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
+   my $target = 'symlink_target';
+   my $srcdir = $self->_file("/$target");
+   my $srcfile = $self->_file("/$target/file.txt");
+   # 5 is the limit for Linux.  Beyond that, we get ELOOP: Too many levels of symbolic links
+   # Other platforms seem to tolerate higher numbers...
+   my @s = map {$self->_file("/symlink_$_")} 1 .. 5; ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
 
    mkdir $srcdir or die $OS_ERROR;
    my $content = 'content';
    $self->_write_file($srcfile, $content);
    ok(-e $srcfile, 'symlink source exists');
+   ok(-f $srcfile, 'symlink source is a file');
 
-   ok((symlink $srcdir, $s[0]), 'created symlink') or die $OS_ERROR;
+   ok((symlink $target, $s[0]), 'created symlink') or die $OS_ERROR;
    for my $i (1..$#s) {
-      ok((symlink $s[$i-1], $s[$i]), 'created symlink') or die $OS_ERROR;
+      ok((symlink 'symlink_' . $i, $s[$i]), 'created symlink') or die $OS_ERROR;
    }
-   my $symfile = $self->_file('/symlink_10/file.txt');
-   ok(-e $symfile, 'file exists');
+   my $symfile = $self->_file('/symlink_'.@s.'/file.txt');
+   ok(-e $symfile, 'file exists'); # or die 'no symlinked file, cannot continue';
    ok(!-l $symfile, 'file is not a symlink');
    ok(-f $symfile, 'file is a file');
    ok(!-d $symfile, 'file is not a dir');
@@ -819,8 +828,9 @@ sub symlink_deep : Test(21) : Introduced('0.06') : Features('symlink') {
 
 sub symlink_loop : Test(2) : Introduced('0.06') : Features('symlink') {
    my ($self) = @_;
-   my $s = $self->_file('/symlink_target');
-   ok((symlink $s, $s), 'created symlink') or die $OS_ERROR;
+   my $target = 'symlink_target';
+   my $s = $self->_file("/$target");
+   ok((symlink $target, $s), 'created symlink') or die $OS_ERROR;
    eval {
       open my $fh, '<', $s or die $OS_ERROR;
       close $fh;  ## no critic(InputOutput::RequireCheckedClose)
@@ -909,8 +919,9 @@ sub time_mtime_create : Test(2) : Introduced('0.06') : Features('time/mtime') {
    my $after = time;
 
    my ($mtime) = (stat $f)[9];   ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
-   cmp_ok($mtime, q{>=}, $before, 'mtime vs. before time');
-   cmp_ok($mtime, q{<=}, $after, 'mtime vs. after time');
+   cmp_ok($mtime, q{>=}, $before - $TIME_LENIENCE, 'mtime vs. before time')
+       or diag 'Is your clock out of synch?';
+   cmp_ok($mtime, q{<=}, $after + $TIME_LENIENCE, 'mtime vs. after time');
    return;
 }
 
@@ -922,13 +933,15 @@ sub time_ctime_create : Test(2) : Introduced('0.06') : Features('time/ctime') {
    my ($self) = @_;
    my $f = $self->_file(q{/file.txt});
 
+   # sleep is needed in case of network filesystem time synch errors
    my $before = time;
    $self->_write_file($f);
    my $after = time;
 
    my ($ctime) = (stat $f)[10];   ## no critic(ValuesAndExpressions::ProhibitMagicNumbers)
-   cmp_ok($ctime, q{>=}, $before, 'ctime vs. before time');
-   cmp_ok($ctime, q{<=}, $after, 'ctime vs. after time');
+   cmp_ok($ctime, q{>=}, $before - $TIME_LENIENCE, 'ctime vs. before time')
+       or diag 'Is your clock out of synch?';
+   cmp_ok($ctime, q{<=}, $after + $TIME_LENIENCE, 'ctime vs. after time');
    return;
 }
 

@@ -7,6 +7,7 @@ WriteMakefile
           'PREREQ_PM' => {
                            'Attribute::Handlers' => '0',
                            'List::MoreUtils' => '0',
+                           'Readonly' => '1',
                            'Test::Class' => '0.24',
                            'Test::More' => '0.62'
                          },
