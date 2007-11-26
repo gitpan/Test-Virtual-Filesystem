@@ -9,8 +9,14 @@ Module::Build->new(
       'List::MoreUtils' => 0,
       'Test::Class' => '0.24',
       'Test::More' => 0.62,
-      'Attribute::Handlers' => 0, # implied by Test::Class, but just in case...
+      'Attribute::Handlers' => '0.78', # implied by Test::Class, but just in case...
       'Readonly' => 1.00,
+      'File::Spec' => 0,
+      'POSIX' => 0,
+      'Carp' => 0,
+   },
+   build_requires => {
+      'Test::Builder::Tester' => '1.04',
    },
    recommends => {
       # Optional for testing extended attributes

@@ -1,5 +1,18 @@
 # History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
 
+0.08 :
+     - Released: 2007 Nov 26
+     - Summary: Added rename tests
+
+     - Feature: Added rename_* tests, documented some unimplemented corner cases
+
+     - Prerequisites: Added Test::Builder::Tester v1.04
+     - Prerequisites: Pointlessly add some core deps (Carp, File::Spec, POSIX) for CPANTS
+
+     - Internals: Convert */*.t to use Test::Builder::Tester instead of ad-hoc Test::Builder data
+     - Internals: Got rid of noisy messages about TODO and skip tests
+     - Internals: Make read operations optionally die, as per test needs
+
 0.07 :
      - Released: 2007 Nov 24
      - Summary: Fix nested symlink test for Linux; Forgive skew between clock and disk timestamp

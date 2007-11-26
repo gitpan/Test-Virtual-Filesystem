@@ -1,8 +1,5 @@
 use warnings;
 use strict;
-use File::Temp qw();
-use Test::More;
-use Test::Builder;
 
 {
    package Test::Virtual::Filesystem::_Features;
@@ -11,28 +8,34 @@ use Test::Builder;
    use Test::More;
    use base 'Test::Virtual::Filesystem';
 
-   sub _feature_test : Test(1) : Features('features_test') {
+   sub _feature_test_1 : Test(1) : Features('features_test') {
       my ($self) = @_;
       pass('features_test');
       return;
    }
 
-   ## debugging for Test::Class v0.24, RT#30836
-   #use Data::Dumper; print STDERR Dumper(Test::Class->_test_info);
+   sub _feature_test_2 : Test(1) : Features('features_test') {
+      my ($self) = @_;
+      fail('features_test');
+      return;
+   }
 }
 
+use File::Temp qw();
+use Test::Builder::Tester tests => 1;
+use Test::More;
+
+test_out('ok 1 # skip features_test');
+test_out('ok 2 # skip features_test');
+
 {
-   local $ENV{TEST_METHOD} = '_feature_test';
-   plan tests => Test::Virtual::Filesystem::_Features->expected_tests(+1);
+   local $ENV{TEST_VERBOSE} = 0; # cargo-culted from Test-Class/t/todo.t
+   local $ENV{TEST_METHOD} = '_feature_test.*';
    my $tmpdir = File::Temp::tempdir('filesys_test_XXXX', CLEANUP => 1, TMPDIR => 1);
-   diag('You should see a "SKIP" test below.  This is just testing that SKIP tests work');
    Test::Virtual::Filesystem::_Features->new({mountdir => $tmpdir})->runtests;
 }
 
-#use Data::Dumper; diag Dumper($_) for Test::Builder->new->details;
-my ($result) = grep {$_->{name} eq 'features_test'
-                         || $_->{reason} =~ m/features_test/xms} Test::Builder->new->details;
-is($result && $result->{type}, 'skip', 'got a SKIP result');
+test_test('unsupported feature reports as skipped test');
 
 __END__
 

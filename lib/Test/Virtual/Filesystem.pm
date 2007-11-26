@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-11-24 20:29:17 -0600 (Sat, 24 Nov 2007) $
+#     $Date: 2007-11-26 00:23:57 -0600 (Mon, 26 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 719 $
+# $Revision: 722 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -22,7 +22,7 @@ use Readonly;
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 Readonly::Scalar my $TIME_LENIENCE => 2; # seconds of tolerance between CPU clock and disk mtime
 
@@ -130,25 +130,27 @@ are needed for the following filesystem features:
 
     hardlinks
     nlink
-    rename
     seek/rewinddir, tell/telldir
     read, sysread, syswrite
     overwrite (with open '+<')
     deep directories
     very full directories
     large files
-    binary files
-    files with awkward content: EOF, NUL, invalid unicode
     non-ASCII filenames (maybe constructor should specify the encoding?)
     permissions
     special file types (fifos, sockets, character and block devices, etc)
     chown
-    binmode
+    binmode, non-binmode
     eof
     fileno
     statfs (AKA `df` or `mount`)
-    file locking
+    rename corner cases:
+     * dest inside src
+     * src or dest leaf is '.' or '..'
+     * src or dest is FS root
+     * dest leaf is symlink
     threading and re-entrancy
+    file locking?
     async I/O??
 
 Any help writing tests (or adapting tests from existing suites) will
@@ -277,6 +279,7 @@ sub new {
       keys %feature_defaults,
    };
    $self->init;
+   $self->{ntestdir} = 0;
    return $self;
 }
 
@@ -334,7 +337,7 @@ Runs before every test to prepare a directory for testing.
 
 =cut
 
-sub setup : Test(setup => 1) {
+sub setup : Test(setup) {
    my ($self) = @_;
    if (!defined $self->{mountdir}) {
       croak 'Programmer error: you did not specify a mountdir';
@@ -349,9 +352,11 @@ sub setup : Test(setup => 1) {
       croak "Your mountdir '$self->{mountdir}' is too close to the root of the filesystem." .
           '  I am too scared of deleting important files to use it';
    }
-   $self->{tempdir} = File::Spec->catdir($self->{mountdir}, 'testdir');
+   $self->{tempdir} = File::Spec->catdir($self->{mountdir}, 'testdir' . ++$self->{ntestdir});
    mkdir $self->{tempdir};
-   ok(-d $self->{tempdir}, 'Created tempdir');
+   if (! -d $self->{tempdir}) {
+      die 'Failed to create tempdir';
+   }
    return;
 }
 
@@ -362,7 +367,7 @@ will have a clean workspace.
 
 =cut
 
-sub teardown : Test(teardown => 1) {
+sub teardown : Test(teardown) {
    my ($self) = @_;
    my $tmpdir = delete $self->{tempdir};
    if (defined $tmpdir && -e $tmpdir) {
@@ -371,7 +376,9 @@ sub teardown : Test(teardown => 1) {
          rmdir $tmpdir or die $OS_ERROR;
       }
    }
-   ok(!defined $tmpdir || !-d $tmpdir, 'Removed tempdir');
+   if (defined $tmpdir && -d $tmpdir) {
+      die 'Failed to remove tempdir';
+   }
    return;
 }
 
@@ -544,7 +551,7 @@ sub read_dir_fail : Test(2) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/no_such');
    eval {
-      $self->_read_dir($f);
+      $self->_read_dir_die($f);
    };
    is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'read non-existent dir');
    ok(!-e $f, 'did not make dir');
@@ -560,7 +567,7 @@ sub read_file_fail : Test(2) : Introduced('0.01') {
    my $f = $self->_file('/read_file_fail');
    my $content = 'content';
    eval {
-      $self->_read_file($f);
+      $self->_read_file_die($f);
    };
    is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'read non-existent file');
    ok(!-e $f, 'did not make file');
@@ -651,6 +658,22 @@ sub write_read_file : Test(1) : Introduced('0.01') {
    my ($self) = @_;
    my $f = $self->_file('/read_file');
    my $content = 'content';
+   $self->_write_file($f, $content);
+   is($self->_read_file($f), $content, 'read file');
+   return;
+}
+
+=item write_read_file_binary(), introduced in v0.08
+
+=cut
+
+sub write_read_file_binary : Test(1) : Introduced('0.08') {
+   my ($self) = @_;
+   my $f = $self->_file('/read_file');
+   my $content = 'content';
+   for my $ord (0 .. 0xff, 0 .. 0xff) { ## no critic(MagicNumber)
+      $content .= chr $ord;
+   }
    $self->_write_file($f, $content);
    is($self->_read_file($f), $content, 'read file');
    return;
@@ -1034,17 +1057,312 @@ sub xattr_set : Test(9) : Introduced('0.02') : Features('xattr') {
    return;
 }
 
+=item rename_file(), introduced in v0.08
+
+=cut
+
+sub rename_file : Test(4) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   my $content = 'content';
+   $self->_write_file($src, $content);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(!-e $src, 'src no longer exists');
+   is($self->_read_file($dest), $content, 'read dest');
+   return;
+}
+
+=item rename_file_exists(), introduced in v0.08
+
+=cut
+
+sub rename_file_exists : Test(4) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   my $content = 'content';
+   $self->_write_file($src, $content);
+   $self->_write_file($dest);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(!-e $src, 'src no longer exists');
+   is($self->_read_file($dest), $content, 'read dest');
+   return;
+}
+
+=item rename_file_self(), introduced in v0.08
+
+=cut
+
+sub rename_file_self : Test(4) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $dest = $src;
+   my $content = 'content';
+   $self->_write_file($src, $content);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(-e $src, 'src still exists');
+   is($self->_read_file($dest), $content, 'read dest');
+   return;
+}
+
+=item rename_file_subdir(), introduced in v0.08
+
+=cut
+
+sub rename_file_subdir : Test(4) : Introduced('0.08') {
+   my ($self) = @_;
+   my $srcdir = $self->_file('/rename_srcdir');
+   my $src = $self->_file('/rename_srcdir/rename_src');
+   my $destdir = $self->_file('/rename_destdir');
+   my $dest = $self->_file('/rename_destdir/rename_dest');
+   mkdir $srcdir or die $OS_ERROR;
+   mkdir $destdir or die $OS_ERROR;
+   my $content = 'content';
+   $self->_write_file($src, $content);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(!-e $src, 'src no longer exists');
+   is($self->_read_file($dest), $content, 'read dest');
+   return;
+}
+
+=item rename_file_missing_src(), introduced in v0.08
+
+=cut
+
+sub rename_file_missing_src : Test(1) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   eval {
+      rename $src, $dest or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'src file is missing');
+   return;
+}
+
+=item rename_file_missing_srcdir(), introduced in v0.08
+
+=cut
+
+sub rename_file_missing_srcdir : Test(1) : Introduced('0.08') {
+   my ($self) = @_;
+   my $srcdir = $self->_file('/rename_srcdir');
+   my $src = $self->_file('/rename_srcdir/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   my $content = 'content';
+   eval {
+      rename $src, $dest or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'src dir is missing');
+   return;
+}
+
+=item rename_file_missing_destdir(), introduced in v0.08
+
+=cut
+
+sub rename_file_missing_destdir : Test(1) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $destdir = $self->_file('/rename_destdir');
+   my $dest = $self->_file('/rename_destdir/rename_dest');
+   my $content = 'content';
+   $self->_write_file($src, $content);
+   eval {
+      rename $src, $dest or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'dest dir is missing');
+   return;
+}
+
+=item rename_dir(), introduced in v0.08
+
+=cut
+
+sub rename_dir : Test(6) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $srcfile = $self->_file('/rename_src/file.txt');
+   my $dest = $self->_file('/rename_dest');
+   my $destfile = $self->_file('/rename_dest/file.txt');
+   mkdir $src or die $OS_ERROR;
+   my $content = 'content';
+   $self->_write_file($srcfile, $content);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(-e $destfile, 'dest file exists');
+   ok(!-e $src, 'src no longer exists');
+   is_deeply([sort $self->_read_dir($dest)], [qw(. .. file.txt)], 'read dest');
+   is($self->_read_file($destfile), $content, 'read dest');
+   return;
+}
+
+=item rename_dir_exists(), introduced in v0.08
+
+=cut
+
+sub rename_dir_exists : Test(6) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $srcfile = $self->_file('/rename_src/file.txt');
+   my $dest = $self->_file('/rename_dest');
+   my $destfile = $self->_file('/rename_dest/file.txt');
+   my $content = 'content';
+   mkdir $src or die $OS_ERROR;
+   mkdir $dest or die $OS_ERROR;
+   $self->_write_file($srcfile, $content);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(-e $destfile, 'dest file exists');
+   ok(!-e $src, 'src no longer exists');
+   is_deeply([sort $self->_read_dir($dest)], [qw(. .. file.txt)], 'read dest');
+   is($self->_read_file($destfile), $content, 'read dest');
+   return;
+}
+
+=item rename_dir_notempty(), introduced in v0.08
+
+=cut
+
+sub rename_dir_notempty : Test(1) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   my $destfile = $self->_file('/rename_dest/file.txt');
+   my $content = 'content';
+   mkdir $src or die $OS_ERROR;
+   mkdir $dest or die $OS_ERROR;
+   $self->_write_file($destfile, $content);
+   eval {
+      rename $src, $dest or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOTEMPTY(), 'dest dir is not empty');
+   return;
+}
+
+=item rename_dir_self(), introduced in v0.08
+
+=cut
+
+sub rename_dir_self : Test(5) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $srcfile = $self->_file('/rename_src/file.txt');
+   my $dest = $src;
+   my $destfile = $srcfile;
+   mkdir $src or die $OS_ERROR;
+   my $content = 'content';
+   $self->_write_file($srcfile, $content);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(-e $destfile, 'dest file exists');
+   is_deeply([sort $self->_read_dir($dest)], [qw(. .. file.txt)], 'read dest');
+   is($self->_read_file($destfile), $content, 'read dest');
+   return;
+}
+
+=item rename_dir_subdir(), introduced in v0.08
+
+=cut
+
+sub rename_dir_subdir : Test(6) : Introduced('0.08') {
+   my ($self) = @_;
+   my $srcdir = $self->_file('/rename_srcdir');
+   my $src = $self->_file('/rename_srcdir/rename_src');
+   my $srcfile = $self->_file('/rename_srcdir/rename_src/file.txt');
+   my $destdir = $self->_file('/rename_destdir');
+   my $dest = $self->_file('/rename_destdir/rename_dest');
+   my $destfile = $self->_file('/rename_destdir/rename_dest/file.txt');
+   mkdir $srcdir or die $OS_ERROR;
+   mkdir $destdir or die $OS_ERROR;
+   mkdir $src or die $OS_ERROR;
+   my $content = 'content';
+   $self->_write_file($srcfile, $content);
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(-e $destfile, 'dest file exists');
+   ok(!-e $src, 'src no longer exists');
+   is_deeply([sort $self->_read_dir($dest)], [qw(. .. file.txt)], 'read dest');
+   is($self->_read_file($destfile), $content, 'read dest');
+   return;
+}
+
+=item rename_mismatch_dir(), introduced in v0.08
+
+=cut
+
+sub rename_mismatch_dir : Test(1) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   my $content = 'content';
+   $self->_write_file($src, $content);
+   mkdir $dest or die $OS_ERROR;
+   eval {
+      rename $src, $dest or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, EISDIR(), 'dest is a directory');
+   return;
+}
+
+=item rename_mismatch_file(), introduced in v0.08
+
+=cut
+
+sub rename_mismatch_file : Test(1) : Introduced('0.08') {
+   my ($self) = @_;
+   my $src = $self->_file('/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   mkdir $src or die $OS_ERROR;
+   my $content = 'content';
+   $self->_write_file($dest, $content);
+   eval {
+      rename $src, $dest or die $OS_ERROR;
+   };
+   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOTDIR(), 'dest is not a directory');
+
+   return;
+}
+
+=item rename_symlink(), introduced in v0.08
+
+=cut
+
+sub rename_symlink : Test(6) : Introduced('0.08') : Features('symlink') {
+   my ($self) = @_;
+   my $srcfile = $self->_file('/rename_srcfile.txt');
+   my $src = $self->_file('/rename_src');
+   my $dest = $self->_file('/rename_dest');
+   my $content = 'content';
+   $self->_write_file($srcfile, $content);
+   symlink $srcfile, $src or die $OS_ERROR;
+   ok((rename $src, $dest), 'rename');
+   ok(-e $dest, 'dest exists');
+   ok(-e $srcfile, 'source target file still exists');
+   ok(!-e $src, 'src no longer exists');
+   ok(-l $dest, 'dest is a symlink');
+   is($self->_read_file($dest), $content, 'read dest');
+   return;
+}
+
 ######### helpers ########
 
 sub _file {
    my ($self, $path) = @_;
    $path =~ s{\A /}{}xms or croak 'test paths must be absolute';
+   # Change path to proper OS format
    return File::Spec->catfile($self->{tempdir}, split m{/}xms, $path);
 }
 
 sub _write_file {
    my ($self, $f, @content) = @_;
    open my $fh, '>', $f or die $OS_ERROR;
+   binmode $fh;
    for my $content (@content) {
       print {$fh} $content or die $OS_ERROR;
    }
@@ -1055,6 +1373,7 @@ sub _write_file {
 sub _append_file {
    my ($self, $f, @content) = @_;
    open my $fh, '>>', $f or die $OS_ERROR;
+   binmode $fh;
    for my $content (@content) {
       print {$fh} $content or die $OS_ERROR;
    }
@@ -1064,13 +1383,31 @@ sub _append_file {
 
 sub _read_file {
    my ($self, $f) = @_;
+   open my $fh, '<', $f or return;
+   binmode $fh;
+   my $content = do { local $INPUT_RECORD_SEPARATOR = undef; <$fh> };
+   close $fh or return;
+   return $content;
+}
+
+sub _read_file_die {
+   my ($self, $f) = @_;
    open my $fh, '<', $f or die $OS_ERROR;
+   binmode $fh;
    my $content = do { local $INPUT_RECORD_SEPARATOR = undef; <$fh> };
    close $fh or die $OS_ERROR;
    return $content;
 }
 
 sub _read_dir {
+   my ($self, $f) = @_;
+   opendir my $fh, $f or return;
+   my @content = readdir $fh;
+   closedir $fh or return;
+   return @content;
+}
+
+sub _read_dir_die {
    my ($self, $f) = @_;
    opendir my $fh, $f or die $OS_ERROR;
    my @content = readdir $fh;

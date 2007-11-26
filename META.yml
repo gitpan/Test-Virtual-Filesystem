@@ -1,6 +1,6 @@
 ---
 name: Test-Virtual-Filesystem
-version: 0.07
+version: 0.08
 author:
   - 'Chris Dolan <cdolan@cpan.org>'
 abstract: Validate a filesystem
@@ -8,12 +8,17 @@ license: perl
 resources:
   license: http://dev.perl.org/licenses/
 requires:
-  Attribute::Handlers: 0
+  Attribute::Handlers: 0.78
+  Carp: 0
+  File::Spec: 0
   List::MoreUtils: 0
+  POSIX: 0
   Readonly: 1
   Test::Class: 0.24
   Test::More: 0.62
   perl: 5.8.0
+build_requires:
+  Test::Builder::Tester: 1.04
 recommends:
   File::ExtAttr: 1
   Test::Pod: 0
@@ -21,7 +26,7 @@ recommends:
 provides:
   Test::Virtual::Filesystem:
     file: lib/Test/Virtual/Filesystem.pm
-    version: 0.07
+    version: 0.08
 generated_by: Module::Build version 0.2808
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html

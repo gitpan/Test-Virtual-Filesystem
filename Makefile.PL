@@ -5,9 +5,13 @@ WriteMakefile
           'NAME' => 'Test::Virtual::Filesystem',
           'VERSION_FROM' => 'lib/Test/Virtual/Filesystem.pm',
           'PREREQ_PM' => {
-                           'Attribute::Handlers' => '0',
+                           'Attribute::Handlers' => '0.78',
+                           'Carp' => '0',
+                           'File::Spec' => '0',
                            'List::MoreUtils' => '0',
+                           'POSIX' => '0',
                            'Readonly' => '1',
+                           'Test::Builder::Tester' => '1.04',
                            'Test::Class' => '0.24',
                            'Test::More' => '0.62'
                          },

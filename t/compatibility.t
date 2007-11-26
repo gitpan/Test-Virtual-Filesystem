@@ -1,8 +1,5 @@
 use warnings;
 use strict;
-use File::Temp qw();
-use Test::More;
-use Test::Builder;
 
 {
    package Test::Virtual::Filesystem::_Compatibility;
@@ -11,25 +8,37 @@ use Test::Builder;
    use Test::More;
    use base 'Test::Virtual::Filesystem';
 
-   sub _compatibility_test : Test(1) : Introduced('0.02') {
+   sub _compatibility_test_1 : Test(1) : Introduced('0.02') {
       my ($self) = @_;
       pass('compatibility_test');
       return;
    }
+   sub _compatibility_test_2 : Test(1) : Introduced('0.02') {
+      my ($self) = @_;
+      fail('compatibility_test');
+      return;
+   }
 }
 
+
+use File::Temp qw();
+use Test::Builder::Tester tests => 1;
+
+test_out('ok 1 - compatibility_test # TODO compatibility mode 0.01');
+test_out('not ok 2 - compatibility_test # TODO compatibility mode 0.01');
+test_err('#   Failed (TODO) test \'compatibility_test\'');
+test_err('#   at t/compatibility.t line 18.');
+test_err('#   (in Test::Virtual::Filesystem::_Compatibility->_compatibility_test_2)');
+
 {
-   local $ENV{TEST_METHOD} = '_compatibility_test'; # pick a special test introduced after v0.01
-   plan tests => Test::Virtual::Filesystem::_Compatibility->expected_tests(+1);
+   local $ENV{TEST_VERBOSE} = 0; # cargo-culted from Test-Class/t/todo.t
+   local $ENV{TEST_METHOD} = '_compatibility_test.*'; # pick a special tests introduced after v0.01
    my $tmpdir = File::Temp::tempdir('filesys_test_XXXX', CLEANUP => 1, TMPDIR => 1);
-   diag('You should see a "TODO" test below.  This is just testing that TODO tests work');
    Test::Virtual::Filesystem::_Compatibility->new({mountdir => $tmpdir,
                                                    compatible => '0.01'})->runtests;
 }
 
-#use Data::Dumper; diag Dumper($_) for Test::Builder->new->details;
-my ($result) = grep {$_->{name} eq 'compatibility_test'} Test::Builder->new->details;
-is($result && $result->{type}, 'todo', 'got a TODO result');
+test_test('compatibility tests emit TODO results');
 
 __END__
 

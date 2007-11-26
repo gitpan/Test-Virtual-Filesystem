@@ -63,25 +63,27 @@ CAVEATS AND LIMITATIONS
 
         hardlinks
         nlink
-        rename
         seek/rewinddir, tell/telldir
         read, sysread, syswrite
         overwrite (with open '+<')
         deep directories
         very full directories
         large files
-        binary files
-        files with awkward content: EOF, NUL, invalid unicode
         non-ASCII filenames (maybe constructor should specify the encoding?)
         permissions
         special file types (fifos, sockets, character and block devices, etc)
         chown
-        binmode
+        binmode, non-binmode
         eof
         fileno
         statfs (AKA `df` or `mount`)
-        file locking
+        rename corner cases:
+         * dest inside src
+         * src or dest leaf is '.' or '..'
+         * src or dest is FS root
+         * dest leaf is symlink
         threading and re-entrancy
+        file locking?
         async I/O??
 
     Any help writing tests (or adapting tests from existing suites) will be
@@ -214,6 +216,7 @@ TEST CASES
     write_file_subdir_fail(), introduced in v0.01
     write_append_file(), introduced in v0.01
     write_read_file(), introduced in v0.01
+    write_read_file_binary(), introduced in v0.08
     write_unlink_file(), introduced in v0.01
     write_mkdir(), introduced in v0.01
     write_mkdir_fail(), introduced in v0.01
@@ -233,6 +236,21 @@ TEST CASES
     time_atime_set(), introduced in v0.06
     xattr_list(), introduced in v0.02
     xattr_set(), introduced in v0.02
+    rename_file(), introduced in v0.08
+    rename_file_exists(), introduced in v0.08
+    rename_file_self(), introduced in v0.08
+    rename_file_subdir(), introduced in v0.08
+    rename_file_missing_src(), introduced in v0.08
+    rename_file_missing_srcdir(), introduced in v0.08
+    rename_file_missing_destdir(), introduced in v0.08
+    rename_dir(), introduced in v0.08
+    rename_dir_exists(), introduced in v0.08
+    rename_dir_notempty(), introduced in v0.08
+    rename_dir_self(), introduced in v0.08
+    rename_dir_subdir(), introduced in v0.08
+    rename_mismatch_dir(), introduced in v0.08
+    rename_mismatch_file(), introduced in v0.08
+    rename_symlink(), introduced in v0.08
 CODE PHILOSOPHY
     These are some coding/design rules for the tests:
 
