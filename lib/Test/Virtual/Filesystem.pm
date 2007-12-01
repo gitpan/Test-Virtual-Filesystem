@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-11-26 00:23:57 -0600 (Mon, 26 Nov 2007) $
+#     $Date: 2007-11-30 23:28:47 -0600 (Fri, 30 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 722 $
+# $Revision: 727 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -17,12 +17,12 @@ use File::Spec;
 use List::MoreUtils qw(any);
 use Attribute::Handlers;
 use Config;
-use POSIX qw(:errno_h);
+use POSIX qw(:errno_h strerror);
 use Readonly;
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.08';
+our $VERSION = '0.09_01';
 
 Readonly::Scalar my $TIME_LENIENCE => 2; # seconds of tolerance between CPU clock and disk mtime
 
@@ -553,7 +553,7 @@ sub read_dir_fail : Test(2) : Introduced('0.01') {
    eval {
       $self->_read_dir_die($f);
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'read non-existent dir');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'read non-existent dir');
    ok(!-e $f, 'did not make dir');
    return;
 }
@@ -569,7 +569,7 @@ sub read_file_fail : Test(2) : Introduced('0.01') {
    eval {
       $self->_read_file_die($f);
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'read non-existent file');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'read non-existent file');
    ok(!-e $f, 'did not make file');
    return;
 }
@@ -612,7 +612,7 @@ sub write_file_subdir_fail : Test(2) : Introduced('0.01') {
    eval {
       $self->_write_file($f, $content);
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'write to non-existent folder');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'write to non-existent folder');
    ok(!-f $f, 'did not make file');
    return;
 }
@@ -645,7 +645,7 @@ sub write_append_file : Test(2) : Introduced('0.01') {
 #    eval {
 #       $self->_append_file($f, $content);
 #    };
-#    is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'append to non-existent file');
+#    _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'append to non-existent file');
 #    ok(!-f $f, 'did not make file');
 #    return;
 # }
@@ -717,7 +717,7 @@ sub write_mkdir_fail : Test(2) : Introduced('0.01') {
    eval {
       mkdir $f or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'mkdir at non-existent path');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'mkdir at non-existent path');
    ok(!-d $f, 'did not make dir');
    return;
 }
@@ -858,7 +858,7 @@ sub symlink_loop : Test(2) : Introduced('0.06') : Features('symlink') {
       open my $fh, '<', $s or die $OS_ERROR;
       close $fh;  ## no critic(InputOutput::RequireCheckedClose)
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ELOOP(), 'detected symlink loop');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ELOOP()], 'detected symlink loop');
    
    return;
 }
@@ -894,7 +894,7 @@ sub truncate_no_file : Test(1) : Introduced('0.06') {
    eval {
       truncate $f, 0 or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'truncate non-existent file');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'truncate non-existent file');
    return;
 }
 
@@ -910,7 +910,9 @@ sub truncate_file_no_dir : Test(1) : Introduced('0.06') {
    eval {
       truncate $f, 0 or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOTDIR(), 'truncate file in non-existent directory');
+   # man 2 truncate says "[ENOTDIR] A component of the path prefix is not a directory."
+   # MSWin32 says ENOENT
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOTDIR(), ENOENT()], 'truncate file in non-existent directory');
    return;
 }
 
@@ -925,7 +927,9 @@ sub truncate_dir : Test(1) : Introduced('0.06') {
    eval {
       truncate $d, 0 or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, EISDIR(), 'truncate dir');
+   # man 2 truncate says "[EISDIR] The named file is a directory."
+   # MSWin32 says EACCES
+   _is_errno($EVAL_ERROR, $OS_ERROR, [EISDIR(), EACCES()], 'truncate dir');
    return;
 }
 
@@ -1141,7 +1145,7 @@ sub rename_file_missing_src : Test(1) : Introduced('0.08') {
    eval {
       rename $src, $dest or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'src file is missing');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'src file is missing');
    return;
 }
 
@@ -1158,7 +1162,7 @@ sub rename_file_missing_srcdir : Test(1) : Introduced('0.08') {
    eval {
       rename $src, $dest or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'src dir is missing');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'src dir is missing');
    return;
 }
 
@@ -1176,7 +1180,7 @@ sub rename_file_missing_destdir : Test(1) : Introduced('0.08') {
    eval {
       rename $src, $dest or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOENT(), 'dest dir is missing');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOENT()], 'dest dir is missing');
    return;
 }
 
@@ -1241,7 +1245,7 @@ sub rename_dir_notempty : Test(1) : Introduced('0.08') {
    eval {
       rename $src, $dest or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOTEMPTY(), 'dest dir is not empty');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOTEMPTY()], 'dest dir is not empty');
    return;
 }
 
@@ -1306,7 +1310,9 @@ sub rename_mismatch_dir : Test(1) : Introduced('0.08') {
    eval {
       rename $src, $dest or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, EISDIR(), 'dest is a directory');
+   # man 2 rename says "[EISDIR] 'to' is a directory, but 'from' is not a directory."
+   # MSWin32 says EACCES
+   _is_errno($EVAL_ERROR, $OS_ERROR, [EISDIR(), EACCES()], 'dest is a directory');
    return;
 }
 
@@ -1324,7 +1330,7 @@ sub rename_mismatch_file : Test(1) : Introduced('0.08') {
    eval {
       rename $src, $dest or die $OS_ERROR;
    };
-   is($EVAL_ERROR && $OS_ERROR && 0+$OS_ERROR, ENOTDIR(), 'dest is not a directory');
+   _is_errno($EVAL_ERROR, $OS_ERROR, [ENOTDIR()], 'dest is not a directory');
 
    return;
 }
@@ -1351,6 +1357,20 @@ sub rename_symlink : Test(6) : Introduced('0.08') : Features('symlink') {
 }
 
 ######### helpers ########
+
+
+sub _is_errno {
+   my ($eval_error, $os_errno, $expected_errnos, $msg) = @_;
+   my $str_errno = "$os_errno";
+   my $num_errno = 0 + $os_errno;
+   return pass($msg) if $eval_error && $os_errno && any {$_ == $num_errno} @{$expected_errnos};
+   my $expected_str = join q{, }, map {strerror($_)} @{$expected_errnos};
+   if (1 == @{$expected_errnos}) {
+      return is("$num_errno ($str_errno)", "$expected_errnos->[0] ($expected_str)", $msg);
+   } else {
+      return is("$num_errno ($str_errno)", "[@{$expected_errnos}] ($expected_str)", $msg);
+   }
+}
 
 sub _file {
    my ($self, $path) = @_;

@@ -13,7 +13,8 @@ WriteMakefile
                            'Readonly' => '1',
                            'Test::Builder::Tester' => '1.04',
                            'Test::Class' => '0.24',
-                           'Test::More' => '0.62'
+                           'Test::More' => '0.62',
+                           'base' => '0'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [],

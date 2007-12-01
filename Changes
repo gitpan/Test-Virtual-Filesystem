@@ -1,5 +1,23 @@
 # History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
 
+0.09_01 :
+     - Released: 2007 Nov 26
+     - Summary: Speculative fixes for platform inconsistencies
+
+     - Fix: MSWin32 reports EACCES, not EISDIR, for truncate_dir
+       Credit: cpan tester srezic@cpan.org
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/2007/11/msg806443.html
+
+     - Fix: MSWin32 reports ENOENT, not ENOTDIR, for truncate_file_no_dir
+       Credit: cpan tester srezic@cpan.org
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/2007/11/msg806443.html
+
+     - Fix: MSWin32 reports EACCES, not EISDIR, for rename_mismatch_dir
+       Credit: cpan tester srezic@cpan.org
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/2007/11/msg806443.html
+
+     - Internals: Better failure diagnostics, including POSIX strerror() messages for $OS_ERROR
+
 0.08 :
      - Released: 2007 Nov 26
      - Summary: Added rename tests
@@ -26,6 +44,8 @@
        CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/2007/11/msg791775.html
 
      - Prerequisites: Added Readonly.pm v1.00
+
+     - Press: http://www.nntp.perl.org/group/perl.qa/2007/11/msg9676.html
 
 0.06 :
      - Released: 2007 Nov 20

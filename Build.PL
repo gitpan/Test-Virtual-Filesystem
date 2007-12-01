@@ -11,9 +11,12 @@ Module::Build->new(
       'Test::More' => 0.62,
       'Attribute::Handlers' => '0.78', # implied by Test::Class, but just in case...
       'Readonly' => 1.00,
+
+      # for completeness, and CPANTS:
       'File::Spec' => 0,
       'POSIX' => 0,
       'Carp' => 0,
+      'base' => 0,
    },
    build_requires => {
       'Test::Builder::Tester' => '1.04',
