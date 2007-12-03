@@ -1,5 +1,19 @@
 # History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
 
+0.10 :
+     - Released: 2007 Dec 02
+     - Summary: Fixes for Win32
+
+     - Feature: Supports Win32 (well, at least Strawberry Perl 5.8.8)
+
+     - Fix: MSWin32 allows rename(<dir>, <file>), instead of ENOTDIR
+       Credit: cpan tester srezic@cpan.org
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/2007/11/msg806443.html
+
+     - Caveats: Fails rename_dir_notempty on Solaris.  Better diagnostics should make this fixable.
+       Credit: cpan-tester Davd Cantrell
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/2007/11/msg812452.html
+
 0.09_01 :
      - Released: 2007 Nov 26
      - Summary: Speculative fixes for platform inconsistencies
