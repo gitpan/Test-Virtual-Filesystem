@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-12-02 21:39:15 -0600 (Sun, 02 Dec 2007) $
+#     $Date: 2007-12-04 21:54:51 -0600 (Tue, 04 Dec 2007) $
 #   $Author: equilibrious $
-# $Revision: 735 $
+# $Revision: 736 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -22,7 +22,7 @@ use Readonly;
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 Readonly::Scalar my $TIME_LENIENCE => 2; # seconds of tolerance between CPU clock and disk mtime
 
@@ -1251,7 +1251,8 @@ sub rename_dir_notempty : Test(1) : Introduced('0.08') {
    };
    # man 2 rename says "[ENOTEMPTY] To is a directory and is not empty."
    # MSWin32 says EACCES
-   $self->_is_errno($EVAL_ERROR, $OS_ERROR, [ENOTEMPTY(), EACCES()], 'dest dir is not empty');
+   # Solaris says EEXIST
+   $self->_is_errno($EVAL_ERROR, $OS_ERROR, [ENOTEMPTY(), EACCES(), EEXIST()], 'dest dir is not empty');
    return;
 }
 
