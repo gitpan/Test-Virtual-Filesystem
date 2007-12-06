@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-12-04 21:54:51 -0600 (Tue, 04 Dec 2007) $
+#     $Date: 2007-12-05 22:41:29 -0600 (Wed, 05 Dec 2007) $
 #   $Author: equilibrious $
-# $Revision: 736 $
+# $Revision: 738 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -22,7 +22,7 @@ use Readonly;
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 Readonly::Scalar my $TIME_LENIENCE => 2; # seconds of tolerance between CPU clock and disk mtime
 
@@ -1334,9 +1334,9 @@ sub rename_mismatch_file : Test(1) : Introduced('0.08') {
    mkdir $src or die $OS_ERROR;
    my $content = 'content';
    $self->_write_file($dest, $content);
-   if ($OSNAME eq 'MSWin32') {
+   if ($OSNAME eq 'MSWin32' || $OSNAME eq 'cygwin') {
       # return the skip message
-      return 'Windows allows rename(<dir>, <file>) instead of failing with ENOTDIR';
+      return 'Windows and Cygwin allow rename(<dir>, <file>) instead of failing with ENOTDIR';
    }
    eval {
       rename $src, $dest or die $OS_ERROR;

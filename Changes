@@ -1,5 +1,13 @@
 # History of Perl distribution Test-Virtual-Filesystem.  This change log is valid YAML.
 
+0.12 :
+     - Released: 2007 Dec 05
+     - Summary: Fix for Cygwin
+
+     - Fix: Cygwin, like MSWin32, allows rename(<dir>, <file>)
+       Credit: cpan tester srezic@cpan.org
+       CPANTesters: http://www.nntp.perl.org/group/perl.cpan.testers/834715
+
 0.11 :
      - Released: 2007 Dec 04
      - Summary: Fix for Solaris
