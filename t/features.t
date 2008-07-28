@@ -30,7 +30,7 @@ test_out('ok 2 # skip features_test');
 
 {
    local $ENV{TEST_VERBOSE} = 0; # cargo-culted from Test-Class/t/todo.t
-   local $ENV{TEST_METHOD} = '_feature_test.*';
+   local $ENV{TEST_METHOD} = '_feature_test_.';
    my $tmpdir = File::Temp::tempdir('filesys_test_XXXX', CLEANUP => 1, TMPDIR => 1);
    Test::Virtual::Filesystem::_Features->new({mountdir => $tmpdir})->runtests;
 }

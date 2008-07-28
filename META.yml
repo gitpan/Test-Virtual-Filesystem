@@ -1,6 +1,6 @@
 ---
 name: Test-Virtual-Filesystem
-version: 0.12
+version: 0.13
 author:
   - 'Chris Dolan <cdolan@cpan.org>'
 abstract: Validate a filesystem
@@ -27,7 +27,7 @@ recommends:
 provides:
   Test::Virtual::Filesystem:
     file: lib/Test/Virtual/Filesystem.pm
-    version: 0.12
+    version: 0.13
 generated_by: Module::Build version 0.2808
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html

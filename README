@@ -21,7 +21,7 @@ SYNOPSIS
     `teardown' method so BE CAREFUL that you specify the right folder!
 
 LICENSE
-    Copyright 2007 Chris Dolan, *cdolan@cpan.org*
+    Copyright 2008 Chris Dolan, *cdolan@cpan.org*
 
     This library is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.
@@ -69,6 +69,7 @@ CAVEATS AND LIMITATIONS
         deep directories
         very full directories
         large files
+        filenames with spaces
         non-ASCII filenames (maybe constructor should specify the encoding?)
         permissions
         special file types (fifos, sockets, character and block devices, etc)

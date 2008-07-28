@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Test-Virtual-Filesystem/lib/Test/Virtual/Filesystem.pm $
-#     $Date: 2007-12-05 22:41:29 -0600 (Wed, 05 Dec 2007) $
+#     $Date: 2008-07-27 21:28:05 -0500 (Sun, 27 Jul 2008) $
 #   $Author: equilibrious $
-# $Revision: 738 $
+# $Revision: 785 $
 ########################################################################
 
 package Test::Virtual::Filesystem;
@@ -22,7 +22,7 @@ use Readonly;
 use Test::More;
 use base 'Test::Class';
 
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 
 Readonly::Scalar my $TIME_LENIENCE => 2; # seconds of tolerance between CPU clock and disk mtime
 
@@ -85,7 +85,7 @@ method so BE CAREFUL that you specify the right folder!
 
 =head1 LICENSE
 
-Copyright 2007 Chris Dolan, I<cdolan@cpan.org>
+Copyright 2008 Chris Dolan, I<cdolan@cpan.org>
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
@@ -136,6 +136,7 @@ are needed for the following filesystem features:
     deep directories
     very full directories
     large files
+    filenames with spaces
     non-ASCII filenames (maybe constructor should specify the encoding?)
     permissions
     special file types (fifos, sockets, character and block devices, etc)
@@ -474,7 +475,7 @@ sub Features : ATTR(CODE) { ## no critic(MixedCase)
       warn 'cannot test anonymous subs - you probably loaded ' . $class . ' too late.' .
           ' (after the CHECK block was run)';
    } else {
-      my @features = split m/\s*,\s*/xms, $features;
+      my @features = ref $features ? @{$features} : split m/\s*,\s*/xms, $features;
       # Wrap the sub in a feature test
       no warnings 'redefine';  ## no critic(TestingAndDebugging::ProhibitNoWarnings)
       *{$symbol} = sub {
